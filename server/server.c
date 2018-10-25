@@ -1,10 +1,23 @@
 #include "server.h"
-#define COMMONMODE 0
-#define LOGINMODE 1					//登录模式
-#define PORTMODE 2
-#define PASVMODE 3
+
+char initMsg[] = "220 Anonymous FTP server ready.\r\n";
+char notLogged[] = "530 You have not logged in. Please login with USER and PASS first.\r\n";
+char userOK[] = "331 Guest login ok, send your complete e-mail address as password.\r\n";
+char passOK[] = "230 Guest login ok, access restrictions apply.\r\n";
+char systReply[] = "215 UNIX Type: L8\r\n";
+char typeOK[] = "200 Type set to I.\r\n";
+char typeError[] = "510 This ftp only supports TYPE I\r\n";
+char portOK[] = "200 PORT command successful.\r\n";
+
+
+#define NOUSER	0					//还没输入USER指令
+#define NOPASSWORD 4				//输入USER指令后未输入密码
+#define LOGGED 1					//登录模式
+#define PORTMODE 2					//输入合法的PORT指令
+#define PASVMODE 3					//输入合法的PASV指令
 #define QUITMODE -1
-int MODE = COMMONMODE;					//全局变量
+
+int MODE = NOUSER;					//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
 char sentence[8192] = "\0";			//发送数据初始化,全局变量
 /****************************************************************************************/
 int main(int argc, char **argv) {
@@ -14,17 +27,17 @@ int main(int argc, char **argv) {
 	int portconnfd;			//port模式下server端用来连接的套接字
 	int pasvlistenfd;		//pasv模式下server端用来监听的套接字
 	listenfd = createlistenfd(6789);//监听并绑定端口
+	
+	//持续监听连接请求
 	while (1) {
 		if ((connfd = accept(listenfd, NULL, NULL)) == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			continue;
 		}
-		printf("进入了server的函数\n");
-		strcpy(sentence, "220 ftp.ssast.org FTP server ready.\r\n");
-		int n = send(connfd, sentence, strlen(sentence), 0);   
-		if(n < 0)
+		printf("进入了server的函数\n"); 
+		if(send(connfd, initMsg, strlen(initMsg), 0) < 0)
 		{
-			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+			printf("Error send(): %s(%d)\n", strerror(errno), errno);
 			continue;			//连接多个客户端，不能return
 		}   
 
@@ -42,7 +55,7 @@ int main(int argc, char **argv) {
 			{
 				printf("%s\n",sentence);
 				if(logIn(sentence) == 1){
-					MODE = LOGINMODE;		//登录状态
+					MODE = LOGGED;		//登录状态
 					n = send(connfd, sentence, strlen(sentence), 0); 
 					memset(sentence, '\0', strlen(sentence));		//清空
 				}	
@@ -83,7 +96,7 @@ int main(int argc, char **argv) {
 					strcpy(sentence,"226 Transfer complete.");
 					n = send(connfd, sentence, strlen(sentence), 0); 	//发送另一条指令
 					memset(sentence, '\0', strlen(sentence));		//清空
-					MODE = COMMONMODE;
+					MODE = NOUSER;
 				}
 				else if(pasv(sentence) == 1)
 				{	
@@ -108,7 +121,7 @@ int main(int argc, char **argv) {
 					printf("传入stor函数的pasclistenfd是%d\n",pasvlistenfd);
 					printf("STOR文件成功\n");
 					memset(sentence, '\0', strlen(sentence));		//清空
-					MODE = COMMONMODE;
+					MODE = NOUSER;
 					
 				}		
 				else if(quit(sentence) == 1)

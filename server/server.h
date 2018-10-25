@@ -15,28 +15,34 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
-int tranlistenfd, tranconnfd;			//用于STOR文件传输
+
+
+//int tranlistenfd, tranconnfd;			//用于STOR文件传输
 /***********************************************************************************************/
 /*创建并返回监听套接字*/
 extern int createlistenfd(int port)
 {
 	int listenfd;
 	struct sockaddr_in addr;
+	
+	//创建socket
 	if ((listenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		printf("Error socket(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-
+	
+	//设置本机的ip和port
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);//6789
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
+	addr.sin_port = htons(port);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);//监听"0.0.0.0"
+	
+	//将本机的ip和port与socket绑定
 	if (bind(listenfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
 		printf("Error bind(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-
+	//开始监听socket
 	if (listen(listenfd, 10) == -1) {
 		printf("Error listen(): %s(%d)\n", strerror(errno), errno);
 		return -1;
@@ -46,26 +52,31 @@ extern int createlistenfd(int port)
 /*创建并返回连接套接字*/
 extern int createconnectfd(int port)
 {
-	int newconnfd;
-	if ((newconnfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) 
+	int connfd;
+	if ((connfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) 
 	{
 		printf("Error socket(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-	struct sockaddr_in newaddr;		//newaddr用来连接client
+	struct sockaddr_in newaddr;		
 	memset(&newaddr, 0, sizeof(newaddr));
 	newaddr.sin_family = AF_INET;
 	newaddr.sin_port = htons(port);		//计算得出：port = 128*256+79=32847
-	if (inet_pton(AF_INET, "127.0.0.1", &newaddr.sin_addr) <= 0) {//本机的ip地址可以在终端通过ip addr指令查询
+	
+	if (inet_pton(AF_INET, "127.0.0.1", &newaddr.sin_addr) <= 0) {//转换ip地址:点分十进制-->二进制
 		printf("Error inet_pton(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-	if (connect(newconnfd, (struct sockaddr*)&newaddr, sizeof(newaddr)) < 0) {
+	//连接上目标主机（将socket和目标主机连接）-- 阻塞函数
+	if (connect(connfd, (struct sockaddr*)&newaddr, sizeof(newaddr)) < 0) {
 		printf("Error connect(): %s(%d)\n", strerror(errno), errno);
-		//连接出错没有向客户端发送任何信息
 		return -1;
 	}
-	return newconnfd;
+	return connfd;
+}
+
+extern checkport(int port){
+	
 }
 /*创建文件并写入内容*/
 extern int createFile(char*content, char* filename)
@@ -118,6 +129,7 @@ extern int passEmail(char* sentence)
 
 extern int syst(char* sentence)
 {
+	//
 	char * msg = "SYST";
 	if(strstr(sentence, msg) != NULL)
 	{
