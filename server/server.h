@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
+#include <pthread.h>
 
 
 //int tranlistenfd, tranconnfd;			//用于STOR文件传输
@@ -152,13 +153,12 @@ extern int type(char* sentence)
 			strcpy(sentence, "200 Type set to I.\r\n");
 		}
 		else{
-			strcpy(sentence, "503 the wrong command sequence\r\n");
+			strcpy(sentence, "503 This ftp only supports TYPE I\r\n");
 		}
 		return 1;
 	}
 	else
 	{
-
 		//printf("ErrorWhenTYPE\n");
 		return -1;
 	}
