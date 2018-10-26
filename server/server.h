@@ -14,11 +14,81 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <arpa/inet.h>
-
 #include <pthread.h>
 
+#define USER 0
+#define PASS 1
+#define RETR 2
+#define STOR 3
+#define QUIT 4
+#define SYST 5
+#define TYPE 6
+#define PORT 7
+#define PASV 8
+#define MKD  9
+#define CWD  10
+#define PWD  11
+#define LIST 12
+#define RMD  13
+#define RNFR 14
+#define RNTO 15
+#define NOCMD 16
 
-//int tranlistenfd, tranconnfd;			//用于STOR文件传输
+extern int judgeCmdType(const char* cmdStr){
+    if(strncmp(cmdStr, "USER", 4) == 0){
+        return USER;
+    }
+    else if(strncmp(cmdStr, "PASS", 4) == 0){
+        return PASS;
+    }
+    else if(strncmp(cmdStr, "RETR", 4) == 0){
+        return RETR;
+    }
+    else if(strncmp(cmdStr, "STOR", 4) == 0){
+        return STOR;
+    }
+    else if(strncmp(cmdStr, "QUIT", 4) == 0){
+        return QUIT;
+    }
+    else if(strncmp(cmdStr, "SYST", 4) == 0){
+        return SYST;
+    }
+    else if(strncmp(cmdStr, "TYPE", 4) == 0){
+        return TYPE;
+    }
+    else if(strncmp(cmdStr, "PORT", 4) == 0){
+        return PORT;
+    }
+    else if(strncmp(cmdStr, "PASV", 4) == 0){
+        return PASV;
+    }
+    else if(strncmp(cmdStr, "MKD", 3) == 0){
+        return MKD;
+    }
+    else if(strncmp(cmdStr, "CWD", 3) == 0){
+        return CWD;
+    }
+    else if(strncmp(cmdStr, "PWD", 3) == 0){
+        return PWD;
+    }
+    else if(strncmp(cmdStr, "LIST", 4) == 0){
+        return LIST;
+    }
+    else if(strncmp(cmdStr, "RMD", 3) == 0){
+        return RMD;
+    }
+    else if(strncmp(cmdStr, "RNFR", 4) == 0){
+        return RNFR;
+    }
+    else if(strncmp(cmdStr, "RNTO", 4) == 0){
+        return RNTO;
+    }
+    else{
+        return NOCMD;
+    }
+}
+
+
 /***********************************************************************************************/
 /*创建并返回监听套接字*/
 extern int createlistenfd(int port)
@@ -35,7 +105,6 @@ extern int createlistenfd(int port)
 	//设置本机的ip和port
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	printf("The local port is %d", port);
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);//监听"0.0.0.0"
 	
@@ -144,31 +213,20 @@ extern int syst(char* sentence)
 		return -1;
 	}
 }
-extern int type(char* sentence)
+
+extern int handleType(char* sentence)
 {
-	char * msg = "TYPE";
-	//printf("%s\n",sentence);
-	if(strstr(sentence, msg) != NULL)
-	{
-		if(strchr(sentence, 'I') != NULL){
-			strcpy(sentence, "200 Type set to I.\r\n");
-		}
-		else{
-			strcpy(sentence, "503 the wrong command sequence\r\n");
-		}
-		return 1;
-	}
-	else
-	{
 
-		//printf("ErrorWhenTYPE\n");
-		return -1;
+	if(strchr(sentence, 'I') != NULL){
+		strcpy(sentence, "200 Type set to I.\r\n");
 	}
-}
-
-extern handleType(){
+	else{
+		strcpy(sentence, "503 the wrong command sequence\r\n");
+	} 
+	return 1;
 	
 }
+
 
 extern handlePort(){
 	

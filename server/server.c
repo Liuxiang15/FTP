@@ -1,12 +1,10 @@
 #include "server.h"
-#include "cmdtype.h"
-#include "stdlib.h"
 
 char initMsg[] = "220 Anonymous FTP server ready.\r\n";
 char notLogged[] = "530 You have not logged in. Please login with USER and PASS first.\r\n";
 char userOK[] = "331 Guest login ok, send your complete e-mail address as password.\r\n";
 char passOK[] = "230 Guest login ok, access restrictions apply.\r\n";
-char passError[] = "503 Wrong password.\r\n"
+char passError[] = "503 Wrong password.\r\n";
 char systReply[] = "215 UNIX Type: L8\r\n";
 char typeOK[] = "200 Type set to I.\r\n";
 char typeError[] = "503 This ftp only supports TYPE I\r\n";
@@ -14,7 +12,7 @@ char portOK[] = "200 PORT command successful.\r\n";
 
 
 #define NOUSER	0					//还没输入USER指令
-#define NOPASS 4				//输入USER指令后未输入密码
+#define NOPASS 4				    //输入USER指令后未输入密码
 #define LOGGED 1					//登录模式
 #define PORTMODE 2					//输入合法的PORT指令
 #define PASVMODE 3					//输入合法的PASV指令
@@ -111,20 +109,35 @@ int main(int argc, char **argv) {
 							n = send(connfd, systReply, strlen(systReply), 0); 
 							memset(sentence, '\0', strlen(sentence));		//清空
 							break;
-						case TYPE：
-							handleType();//该函数还未定义
+						case TYPE:
+							{
+								if(strncmp(sentence, "TYPE I", 6) == 0){
+									n = send(connfd, typeOK, strlen(typeOK), 0); 	
+								}
+								else{
+									n = send(connfd, typeError, strlen(typeError), 0); 
+								}
+								memset(sentence, '\0', strlen(sentence));		//清空
+							}
+							break;
 						case PORT:
-							handlePort();
+							{
+
+							}
+							break;
 						default:
 							memset(sentence, '\0', strlen(sentence));		//清空
 					}
 				}
+				else if(MODE == PORTMODE){
+
+				}
+				else if(MODE == PASVMODE){
+					
+				}
 				
-				if(type(sentence) == 1){
-					n = send(connfd, sentence, strlen(sentence), 0); 
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}	
-				else if(strstr(sentence, "PORT") != NULL){			//port指令
+				/*
+				if(strstr(sentence, "PORT") != NULL){			//port指令
 					//新建socket用于文件传输，连接client
 					newport = port(sentence, newip);
 					printf("服务端port函数发送的内容是%s", sentence);
@@ -211,7 +224,7 @@ int main(int argc, char **argv) {
 					strcpy(sentence,"指令出错\r\n");
 					printf("此时的指令为%s\n", sentence);
 					n = send(connfd, sentence, strlen(sentence), 0);
-				}
+				}*/
 				memset(sentence, '\0', strlen(sentence));		//清空
 			}
 		}
