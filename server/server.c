@@ -1,18 +1,20 @@
 #include "server.h"
+#include "cmdtype.h"
 #include "stdlib.h"
 
 char initMsg[] = "220 Anonymous FTP server ready.\r\n";
 char notLogged[] = "530 You have not logged in. Please login with USER and PASS first.\r\n";
 char userOK[] = "331 Guest login ok, send your complete e-mail address as password.\r\n";
 char passOK[] = "230 Guest login ok, access restrictions apply.\r\n";
+char passError[] = "503 Wrong password.\r\n"
 char systReply[] = "215 UNIX Type: L8\r\n";
 char typeOK[] = "200 Type set to I.\r\n";
-char typeError[] = "510 This ftp only supports TYPE I\r\n";
+char typeError[] = "503 This ftp only supports TYPE I\r\n";
 char portOK[] = "200 PORT command successful.\r\n";
 
 
 #define NOUSER	0					//还没输入USER指令
-#define NOPASSWORD 4				//输入USER指令后未输入密码
+#define NOPASS 4				//输入USER指令后未输入密码
 #define LOGGED 1					//登录模式
 #define PORTMODE 2					//输入合法的PORT指令
 #define PASVMODE 3					//输入合法的PASV指令
@@ -75,21 +77,50 @@ int main(int argc, char **argv) {
 			}
 			else
 			{
-				printf("%s\n",sentence);
-				if(logIn(sentence) == 1){
-					MODE = LOGGED;		//登录状态
-					n = send(connfd, sentence, strlen(sentence), 0); 
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}	
-				else if(passEmail(sentence) == 1){
-					n = send(connfd, sentence, strlen(sentence), 0); 
-					memset(sentence, '\0', strlen(sentence));		//清空
+				int cmd_type = judgeCmdType(sentence);//判断命令类型
+
+				//根据用户的不同状态进行操作
+				if(MODE == NOUSER){
+					switch(cmd_type){
+						case USER:
+							MODE = NOPASS;
+							n = send(connfd, userOK, strlen(userOK), 0); 
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+						default:
+							n = send(connfd, notLogged, strlen(notLogged), 0); 
+							memset(sentence, '\0', strlen(sentence));		//清空
+					}
 				}
-				else if(syst(sentence) == 1){
-					n = send(connfd, sentence, strlen(sentence), 0); 
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}	
-				else if(type(sentence) == 1){
+				else if(MODE == NOPASS){
+					switch (cmd_type){
+						case PASS:
+							MODE = LOGGED;
+							n = send(connfd, passOK, strlen(passOK), 0); 
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+						default:
+							n = send(connfd, passError, strlen(passError), 0); 
+							memset(sentence, '\0', strlen(sentence));		//清空
+					}
+				}
+				else if(MODE == LOGGED){
+					switch (cmd_type){
+						//其实并不是只有在登录状态下才可以发SYST指令
+						case SYST:
+							n = send(connfd, systReply, strlen(systReply), 0); 
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+						case TYPE：
+							handleType();//该函数还未定义
+						case PORT:
+							handlePort();
+						default:
+							memset(sentence, '\0', strlen(sentence));		//清空
+					}
+				}
+				
+				if(type(sentence) == 1){
 					n = send(connfd, sentence, strlen(sentence), 0); 
 					memset(sentence, '\0', strlen(sentence));		//清空
 				}	

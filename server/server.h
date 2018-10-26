@@ -166,6 +166,13 @@ extern int type(char* sentence)
 	}
 }
 
+extern handleType(){
+	
+}
+
+extern handlePort(){
+	
+}
 
 extern int port(char* sentence, char*newip){
 	char * msg = "PORT";
