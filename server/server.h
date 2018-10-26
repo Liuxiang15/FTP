@@ -35,6 +35,7 @@ extern int createlistenfd(int port)
 	//设置本机的ip和port
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
+	printf("The local port is %d", port);
 	addr.sin_port = htons(port);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);//监听"0.0.0.0"
 	
@@ -153,12 +154,13 @@ extern int type(char* sentence)
 			strcpy(sentence, "200 Type set to I.\r\n");
 		}
 		else{
-			strcpy(sentence, "503 This ftp only supports TYPE I\r\n");
+			strcpy(sentence, "503 the wrong command sequence\r\n");
 		}
 		return 1;
 	}
 	else
 	{
+
 		//printf("ErrorWhenTYPE\n");
 		return -1;
 	}

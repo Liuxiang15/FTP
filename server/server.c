@@ -7,7 +7,7 @@ char userOK[] = "331 Guest login ok, send your complete e-mail address as passwo
 char passOK[] = "230 Guest login ok, access restrictions apply.\r\n";
 char systReply[] = "215 UNIX Type: L8\r\n";
 char typeOK[] = "200 Type set to I.\r\n";
-char typeError[] = "503 This ftp only supports TYPE I\r\n";
+char typeError[] = "510 This ftp only supports TYPE I\r\n";
 char portOK[] = "200 PORT command successful.\r\n";
 
 
@@ -22,31 +22,23 @@ int MODE = NOUSER;					//记录server和client状态的全局变量，这里有b
 char sentence[8192] = "\0";			//发送数据初始化,全局变量
 
 int handleCmdArgu(int argc, char **argv, char*root){
-	//返回端口号
-	if(argc == 2){
-		if(argv[1][0] == '/'){
-			//输入参数是目录
-			strcpy(root, argv[1]);
-			puts("输入参数是目录\n");
-			return 21;
+	//返回端口号默认21 测试阶段用6789
+	int port = 21;
+	for(int i = 1; i < argc; i++){
+		if(!strcmp(argv[i], "-port")){
+			port = atoi(argv[++i]);
 		}
-		else{
-			printf("输入参数是port%d\n", atoi(argv[1]));
-			return atoi(argv[1]);
+		else if(!strcmp(argv[i], "-root")){
+			strcpy(root, argv[i]);
 		}
 	}
-	else if(argc == 3){
-		printf("输入参数是port%s 目录%s\n", argv[1], argv[2]);
-		strcpy(root, argv[2]);
-		return atoi(argv[1]);
-	}
+	return port;
 }
 
 
 int main(int argc, char **argv) {
 	char root[100] = "\0";
 	int listenPort = handleCmdArgu(argc, argv, root);
-	//注意这里还需要修改操作目录
 	int listenfd, connfd;		//服务端最初始的两个套接字
 	char newip[20] = "\0";		//用于传输文件的ip地址
 	int newport;			//用于传输文件的port,可通过对字符串的截取计算得出
@@ -56,9 +48,13 @@ int main(int argc, char **argv) {
 	int n;
 	//持续监听连接请求
 	while (1) {
+		//struct sockaddr_in cli_addr;
+		//memset(&cli_addr, 0, sizeof(cli_addr));
 		if ((connfd = accept(listenfd, NULL, NULL)) == -1) {
+			//printf("出错的客户端口是%d\n", ntohl(cli_addr.sin_port));
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			continue;
+			//break;
 		}
 		printf("进入了server的函数\n"); 
 		if(send(connfd, initMsg, strlen(initMsg), 0) < 0)
@@ -191,5 +187,6 @@ int main(int argc, char **argv) {
 	}
 	close(listenfd);
 }
+
 
 

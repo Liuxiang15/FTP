@@ -6,7 +6,7 @@ int MODE;
 #define PORTMODE 3
 int main(int argc, char **argv) {
 	//int sockfd =  createconnectfd("166.111.80.127", 5050);//助教测试
-	int sockfd =  createconnectfd("127.0.0.1", 6789);//本机测试
+	int sockfd =  createconnectfd("127.0.0.1", 21);//本机测试
 	char sentence[65535] = "\0";		//存储用户输入的指令
 	int n = recv(sockfd, sentence, 1024, 0);
 	if(n < 0)
