@@ -97,20 +97,13 @@ extern int createclientlistenfd(int port)
 	}
 	return clientlistenfd;
 }
-extern int createFile(char*content)
+extern int createFile(char*filename, char*content)
 {
-	/*定义函数 FILE * fopen(const char * path,const char * mode);
-	r 打开只读文件，该文件必须存在。r+ 打开可读写的文件，该文件必须存在。
-	w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
-	/*
-	fwrite和fread相对应，负责将准备好的数据写入到文件流中。
-	通常情况下，这个函数执行完的时候，只是将数据写入了缓存，磁盘的文件中并不会立即出现刚刚写入的数据,在调用fclose之后，计算机才将缓存中的数据写入磁盘。
-	函数原型：size_t fwrite(void *p, size_t size, size_t num, FILE *fp);
-	fwrite和fread的参数要表达的意思是一样的，不同的是将*p中的数据写入到文件流中，以及返回值表示成功写入的数目。
-	*/
+	printf("the file name is %s", filename);
+	//FILE *fp = fopen(filename, "w");					/*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
 	FILE *fp = fopen("test.txt", "w");
 	int nFileLen = strlen(content);
-	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)
+	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
 	{
 		printf("写入文件失败\n");
 		return -1;
@@ -260,10 +253,11 @@ extern int retr(char*sentence)
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
 {
+	char filename[20] = "\0";
 	if(MODE == 2)		//PASVMODE
 	{
 		char pasvfileContent[128] = "\0";		//默认传输文件不超过19KB 
-		char filename[20] = "\0";
+		
 		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
 		FILE *fp = fopen(filename, "w");
 		while(1)
@@ -297,8 +291,13 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 	}
 	else
 	{
-		printf("进入了testRETR的创建文件函数\n");
-		createFile(fileContent);
+		printf("进入了testRETR的创建文件函数\n"); 
+		if(createFile(filename, fileContent) == 1){
+			puts("createfile OK");
+		}
+		else{
+			puts("createfile Error");
+		}
 	}
 	close(testfd);		//传输结束
 	close(clientlistenfd);	//关掉套接字

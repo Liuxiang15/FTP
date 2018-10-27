@@ -89,6 +89,39 @@ extern int judgeCmdType(const char* cmdStr){
 }
 
 
+
+extern int readFileList(char *rootPath){
+	//由根目录读取包含的文件名和文件夹名
+	/*
+	struct dirent
+	{
+		long d_ino; 							inode number 索引节点号 
+		off_t d_off; 							offset to this dirent 		在目录文件中的偏移 
+		unsigned short d_reclen; 				 length of this d_name 文件名长 
+		unsigned char d_type; 					 the type of d_name 文件类型 
+		char d_name [NAME_MAX+1]; 				file name (null-terminated) 文件名，最长255字符 
+	}
+	*/
+	DIR *dir;
+	struct dirent *ptr;
+	char base[1000];
+	if((dir = opendir(rootPath)) == NULL){
+		perror("Open dir error.");
+		return -1;
+	}
+	while((ptr = readdir(dir)) != NULL){
+		if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
+			continue;
+		else if(ptr->d_type == 8)    ///file
+			printf("file_name:%s/%s\n",rootPath,ptr->d_name);
+		else if(ptr->d_type == 4){	//dir
+			//针对文件夹可有其他的操作，这里只获取文件名
+			printf("dir_name:%s/%s\n",rootPath,ptr->d_name);
+		}
+	}
+	closedir(dir);
+	return 1;
+}
 /***********************************************************************************************/
 /*创建并返回监听套接字*/
 extern int createlistenfd(int port)
@@ -207,79 +240,67 @@ extern int port(char* sentence, char*newip){
 
 }
 /*retr指令处理*/
-int retr(char* sentence, int portconnfd,int pasvlistenfd, int MODE)	//sentence, portconnfd, pasvlistenfd, MODE
+int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, int MODE)	//sentence, portconnfd, pasvlistenfd, MODE
 {
-	//if(MODE <= 1)		//用户未登录或者未设定模式
+
+	char filename[100] = "\0";
+	strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
+	//消除空白符对文件名字符串的影响
+	for(int i = 0; i < strlen(sentence)-5; i++)
+	{
+		if(filename[i] == '\n' || filename[i] == '\t' ||filename[i] == '\r')
+			filename[i] = '\0';
+	}
+	printf("The file name is %s\n", filename);
+
+	char path[64] = "\0";	//存储当前绝对目录
+	//if (NULL == realpath(relative_path, path))
 	//{
-	//	strcpy(sentence, "Please Set Mode");
-	//	return -1;
+	//    printf("***Error***\n");
+	//    return -1;
 	//}
-	//这个函数应该还有提取文件名并保存在外部可访问变量的功能
-	//if(MODE == 2)		//PORT模式
-	//{
-		char* msg = "RETR";
-		if(strstr(sentence, msg) != NULL)
+	//printf("current absolute path:%s\n", path);
+
+	FILE *fp = fopen(filename,"rb");  		//rb,read binary file
+	if (fp == NULL)
+	{  
+		strcpy(sentence, "Open file failed\n");
+		perror("Open file failed\n");  
+		printf("异常退出retr函数\n");
+		return -1;
+	}  
+	else{
+		//统计txt文件的字节数,只统计字节数是不够的，应该先发送完之后回复字节数
+		int nFileLen = 0;
+		fseek(fp,0,SEEK_END); //定位到文件末 
+		nFileLen = ftell(fp); //文件长度
+		memset(sentence, '\0', strlen(sentence));		//清空
+		fseek(fp,0,SEEK_SET);		//fp指向文件头
+		fread(sentence,1,nFileLen+1,fp);
+		printf("服务端读取到的文件是%s\n", sentence);
+		char sendContent[1000] = "\0";
+		strcpy(sendContent, sentence);
+		int n = send(portconnfd, sendContent, strlen(sendContent), 0);		//传输文件需要用到portconnfd
+		if(n < 0)
 		{
-			char filename[20] = "\0";
-			strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
-			//消除空白符对文件名字符串的影响
-			for(int i = 0; i < strlen(sentence)-5; i++)
-			{
-				if(filename[i] == '\n' || filename[i] == '\t' ||filename[i] == '\r')
-					filename[i] = '\0';
-			}
-			FILE *fp = fopen(filename,"rb");  		//用来二进制打开文件的
-			if (fp == NULL)
-			{  
-				strcpy(sentence, "Open file failed\n");
-				perror("Open file failed\n");  
-				printf("异常退出retr函数\n");
-
-
-				return -1;
-			}  
-			else{
-				//统计txt文件的字节数,只统计字节数是不够的，应该先发送完之后回复字节数
-				int nFileLen = 0;
-				fseek(fp,0,SEEK_END); //定位到文件末 
-				nFileLen = ftell(fp); //文件长度
-				memset(sentence, '\0', strlen(sentence));		//清空
-				fseek(fp,0,SEEK_SET);		//fp指向文件头
-				fread(sentence,1,nFileLen+1,fp);
-				printf("服务端读取到的文件是%s\n", sentence);
-				char sendContent[1000] = "\0";
-				strcpy(sendContent, sentence);
-				int n = send(portconnfd, sendContent, strlen(sendContent), 0);		//传输文件需要用到portconnfd
-				if(n < 0)
-				{
-					printf("服务端send文件出错\n");	
-					printf("Error send(): %s(%d)\n", strerror(errno), errno);
-				}
-				close(portconnfd);		//关掉套接字
-				memset(sentence, '\0', strlen(sentence));		//清空
-				/*以下是连接发送的字符串*/
-				strcpy(sentence, "50 Opening BINARY mode data connection for ");	
-				strcat(sentence, filename);
-				strcat(sentence, " (");
-				char strnum[20] = "\0"; 
-				snprintf(strnum, 19, "%d", nFileLen);
-				strcat(sentence, strnum);
-				strcat(sentence, " bytes).");
-				printf("返回文件打开结果%s\n",sentence);		//看返回什么东西 
-				fclose(fp);		//关闭文件
-				printf("%s",sentence);
-				return 1;
-			}
+			printf("服务端send文件出错\n");	
+			printf("Error send(): %s(%d)\n", strerror(errno), errno);
 		}
-		else
-			return  -1;
-	//}
-	//else if(MODE == 3)
-	//{
-	//	return -1;
-		/*此处可以补充pasv模式下文件的RETR指令*/
-	//}
-	
+		close(portconnfd);		//关掉套接字
+		memset(sentence, '\0', strlen(sentence));		//清空
+		/*以下是连接发送的字符串*/
+		strcpy(sentence, "50 Opening BINARY mode data connection for ");	
+		strcat(sentence, filename);
+		strcat(sentence, " (");
+		char strnum[20] = "\0"; 
+		snprintf(strnum, 19, "%d", nFileLen);
+		strcat(sentence, strnum);
+		strcat(sentence, " bytes).");
+		printf("返回文件打开结果%s\n",sentence);		//看返回什么东西 
+		fclose(fp);		//关闭文件
+		printf("%s",sentence);
+		return 1;
+	}
 }
 
 /*pasv指令处理*/

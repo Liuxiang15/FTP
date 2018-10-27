@@ -9,6 +9,7 @@ char systReply[] = "215 UNIX Type: L8\r\n";
 char typeOK[] = "200 Type set to I.\r\n";
 char typeError[] = "503 This ftp only supports TYPE I\r\n";
 char portOK[] = "200 PORT command successful.\r\n";
+char retrFinish[] = "226 Transfer complete.\r\n";
 
 
 #define NOUSER	0					//还没输入USER指令
@@ -22,7 +23,7 @@ int MODE = NOUSER;					//记录server和client状态的全局变量，这里有b
 char sentence[8192] = "\0";			//发送数据初始化,全局变量
 
 int handleCmdArgu(int argc, char **argv, char*root){
-	//返回端口号默认21 测试阶段用6789
+	//返回端口号默认21 
 	int port = 21;
 	for(int i = 1; i < argc; i++){
 		if(!strcmp(argv[i], "-port")){
@@ -37,8 +38,10 @@ int handleCmdArgu(int argc, char **argv, char*root){
 
 
 int main(int argc, char **argv) {
-	char root[100] = "\0";
-	int listenPort = handleCmdArgu(argc, argv, root);
+	char rootPath[100] = "/tmp";
+	int listenPort = handleCmdArgu(argc, argv, rootPath);
+	chdir(rootPath);//change file content
+	
 	int listenfd, connfd;		//服务端最初始的两个套接字
 	char newip[20] = "\0";		//用于传输文件的ip地址
 	int newport;			//用于传输文件的port,可通过对字符串的截取计算得出
@@ -137,6 +140,22 @@ int main(int argc, char **argv) {
 					}
 				}
 				else if(MODE == PORTMODE){
+					switch(cmd_type){
+						case RETR:
+							//puts("enter RETR");
+							//readFileList(rootPath);
+							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE);
+							n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
+							n = send(connfd, retrFinish, strlen(retrFinish), 0); 	//发送另一条指令
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+						case STOR:
+							puts("enter STOR\n");
+							
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+						
+					}
 
 				}
 				else if(MODE == PASVMODE){
@@ -144,34 +163,7 @@ int main(int argc, char **argv) {
 				}
 				
 				/*
-				if(strstr(sentence, "PORT") != NULL){			//port指令
-					//新建socket用于文件传输，连接client
-					
-					printf("服务端port函数发送的内容是%s", sentence);
-					MODE = PORTMODE;					//PORTMODE模式
-					portconnfd = createconnectfd(newport);			//由助教实例计算得出：port = 128*256+79=32847
-					n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-					memset(sentence, '\0', strlen(sentence));		//清空
-					
-				}	
-				else if(retr(sentence, portconnfd, pasvlistenfd, MODE) == 1){			//RETR指令
-					if(MODE != PORTMODE || MODE != PASVMODE)
-					{
-						memset(sentence, '\0', strlen(sentence));		//清空
-						strcpy(sentence, "Please login in or set correct mode.");
-						n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-						memset(sentence, '\0', strlen(sentence));		//清空
-						continue;
-					}
-					printf("第一次retr的内容是%s", sentence);
-					n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-					memset(sentence, '\0', strlen(sentence));		//清空
-					strcpy(sentence,"226 Transfer complete.");
-					n = send(connfd, sentence, strlen(sentence), 0); 	//发送另一条指令
-					memset(sentence, '\0', strlen(sentence));		//清空
-					MODE = NOUSER;
-				}
-				else if(pasv(sentence) == 1)
+				if(pasv(sentence) == 1)
 				{	
 				
 					pasvlistenfd = dealpasv(sentence);	//返回套接字
