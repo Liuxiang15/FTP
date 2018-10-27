@@ -16,23 +16,9 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define USER 0
-#define PASS 1
-#define RETR 2
-#define STOR 3
-#define QUIT 4
-#define SYST 5
-#define TYPE 6
-#define PORT 7
-#define PASV 8
-#define MKD  9
-#define CWD  10
-#define PWD  11
-#define LIST 12
-#define RMD  13
-#define RNFR 14
-#define RNTO 15
-#define NOCMD 16
+#include "const.h"
+
+
 
 extern int judgeCmdType(const char* cmdStr){
     if(strncmp(cmdStr, "USER", 4) == 0){

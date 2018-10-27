@@ -12,13 +12,6 @@ char portOK[] = "200 PORT command successful.\r\n";
 char retrFinish[] = "226 Transfer complete.\r\n";
 
 
-#define NOUSER	0					//还没输入USER指令
-#define NOPASS 4				    //输入USER指令后未输入密码
-#define LOGGED 1					//登录模式
-#define PORTMODE 2					//输入合法的PORT指令
-#define PASVMODE 3					//输入合法的PASV指令
-#define QUITMODE -1
-
 int MODE = NOUSER;					//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
 char sentence[8192] = "\0";			//发送数据初始化,全局变量
 

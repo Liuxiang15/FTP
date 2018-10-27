@@ -20,15 +20,15 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
+#include "const.h"
 extern int MODE;		//作为客户端的状态变量
 
-extern int normalizeget(char * sentence)		//把所有输入的字符串后加上\r\n
+extern int normalizeInput(char * sentence)		//把所有输入的字符串后加上\r\n
 {
 	int len = strlen(sentence);
 	sentence[len-1] = '\r';
-	strcat(sentence,"\n");
+	strcat(sentence,"\n");//这里默认加上了'\0'字符
 	return 0;
-	
 }
 
 extern int normalizerecv(char * sentence)		//把所有读入的字符串后加上\r\n
