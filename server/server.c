@@ -55,26 +55,27 @@ int main(int argc, char **argv) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			continue;
 			//break;
+			//break;
 		}
 		printf("进入了server的函数\n"); 
 		if(send(connfd, initMsg, strlen(initMsg), 0) < 0)
 		{
 			printf("Error send(): %s(%d)\n", strerror(errno), errno);
-			continue;			//连接多个客户端，不能return
+			continue;	//连接多个客户端，不能return
 		}   
 
 		while(1)
 		{	
 			memset(sentence, '\0', sizeof(sentence));
-			n = recv(connfd, sentence, 8192, 0);		
-			//printf("服务端接受到的字符串为%s\n", sentence);		
+			n = recv(connfd, sentence, 8192, 0);			
 			if(n < 0)
 			{
 				printf("recv error!%s(%d)\n", strerror(errno), errno);  
-		 		return 1; 
+		 		continue;
 			}
 			else
 			{
+				printf("服务端接受到的字符串为%s", sentence);	
 				int cmd_type = judgeCmdType(sentence);//判断命令类型
 
 				//根据用户的不同状态进行操作
@@ -122,7 +123,13 @@ int main(int argc, char **argv) {
 							break;
 						case PORT:
 							{
-
+								//新建socket用于文件传输，连接client
+								MODE = PORTMODE;
+								newport = port(sentence, newip);
+								//printf("客户端传过来的ip是%s", newip);
+								portconnfd = createconnectfd(newport, newip);			//由助教实例计算得出：port = 128*256+79=32847
+								n = send(connfd, portOK, strlen(portOK), 0); 	//发送指令还是用之前的connfd
+								memset(sentence, '\0', strlen(sentence));		//清空
 							}
 							break;
 						default:
@@ -139,7 +146,7 @@ int main(int argc, char **argv) {
 				/*
 				if(strstr(sentence, "PORT") != NULL){			//port指令
 					//新建socket用于文件传输，连接client
-					newport = port(sentence, newip);
+					
 					printf("服务端port函数发送的内容是%s", sentence);
 					MODE = PORTMODE;					//PORTMODE模式
 					portconnfd = createconnectfd(newport);			//由助教实例计算得出：port = 128*256+79=32847

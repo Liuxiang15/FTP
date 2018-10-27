@@ -158,8 +158,8 @@ extern int port(char* sentence, char*newip){
 	int port = 256 * nump1 + nump2;		//计算求得port
 	//printf("port函数中的p1和p2分别是%d %d\n", nump1, nump2);
 	//printf("ip地址为：%s\n", newip);
-	memset(sentence, '\0', strlen(sentence));		//清空
-	strcpy(sentence, "200 PORT command successful.\r\n");
+	//memset(sentence, '\0', strlen(sentence));		//清空
+	//strcpy(sentence, "200 PORT command successful.\r\n");
 	//printf("port函数中的port=%d\n",port);
 	return port;
 	

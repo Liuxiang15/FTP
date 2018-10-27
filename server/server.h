@@ -110,6 +110,7 @@ extern int createlistenfd(int port)
 	
 	//将本机的ip和port与socket绑定
 	if (bind(listenfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+		//puts("bangding error");
 		printf("Error bind(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
@@ -121,7 +122,7 @@ extern int createlistenfd(int port)
 	return listenfd;
 }
 /*创建并返回连接套接字*/
-extern int createconnectfd(int port)
+extern int createconnectfd(int port, char ip[])
 {
 	int connfd;
 	if ((connfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) 
@@ -134,6 +135,7 @@ extern int createconnectfd(int port)
 	newaddr.sin_family = AF_INET;
 	newaddr.sin_port = htons(port);		//计算得出：port = 128*256+79=32847
 	
+	//本来应该是连接目标主机的IP地址的，但是因为在自己测试的时候使用的本地的IP地址，所以需要获取本地IP
 	if (inet_pton(AF_INET, "127.0.0.1", &newaddr.sin_addr) <= 0) {//转换ip地址:点分十进制-->二进制
 		printf("Error inet_pton(): %s(%d)\n", strerror(errno), errno);
 		return -1;
@@ -146,21 +148,10 @@ extern int createconnectfd(int port)
 	return connfd;
 }
 
-extern checkport(int port){
-	
-}
+
 /*创建文件并写入内容*/
 extern int createFile(char*content, char* filename)
 {
-	/*定义函数 FILE * fopen(const char * path,const char * mode);
-	r 打开只读文件，该文件必须存在。r+ 打开可读写的文件，该文件必须存在。
-	w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
-	/*
-	fwrite和fread相对应，负责将准备好的数据写入到文件流中。
-	通常情况下，这个函数执行完的时候，只是将数据写入了缓存，磁盘的文件中并不会立即出现刚刚写入的数据,在调用fclose之后，计算机才将缓存中的数据写入磁盘。
-	函数原型：size_t fwrite(void *p, size_t size, size_t num, FILE *fp);
-	fwrite和fread的参数要表达的意思是一样的，不同的是将*p中的数据写入到文件流中，以及返回值表示成功写入的数目。
-	*/
 	FILE *fp = fopen(filename, "w");
 	int nFileLen = strlen(content);
 	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)
@@ -171,114 +162,49 @@ extern int createFile(char*content, char* filename)
 	return 1;
 }
 
-extern int logIn(char* sentence)
-{
-	char *msg = "USER anonymous";
-	 if(strstr(sentence, msg) == NULL)
-	 {
-		 return -1;//失败返回
-	 }
-	 strcpy(sentence,"331 Guest login ok, send your complete e-mail address as password.\r\n");
-	 return 1;	   //成功返回
-}
-
-extern int passEmail(char* sentence)
-{
-	char * msg1 = "PASS";
-	char msg2 = '@';
-	if(strstr(sentence, msg1) != NULL && strchr(sentence, msg2)!= NULL)
-	{
-		strcpy(sentence, "230 Guest login ok, access restrictions apply.\r\n");
-		return 1;
-	}
-	else
-	{
-		return -1;
-	}
-}
-
-
-extern int syst(char* sentence)
-{
-	//
-	char * msg = "SYST";
-	if(strstr(sentence, msg) != NULL)
-	{
-		strcpy(sentence, "215 UNIX Type: L8\r\n");
-		return 1;
-	}
-	else
-	{
-		//printf("ErrorWhenSYST\n");
-		return -1;
-	}
-}
-
-extern int handleType(char* sentence)
-{
-
-	if(strchr(sentence, 'I') != NULL){
-		strcpy(sentence, "200 Type set to I.\r\n");
-	}
-	else{
-		strcpy(sentence, "503 the wrong command sequence\r\n");
-	} 
-	return 1;
-	
-}
-
-
-extern handlePort(){
-	
-}
 
 extern int port(char* sentence, char*newip){
-	char * msg = "PORT";
-	printf("port函数中的sentence是%s\n", sentence);
-	if(strstr(sentence, msg) != NULL)
-	{	
-		int j = 0;	//ip下标
-		int num = 0;	//标识，的数量
-		char strp1[4] = "\0";
-		char strp2[4] = "\0";
-		//获取ip地址:h1,h2,h3,h4,p1,p2
-		for(int i = 5; i < strlen(sentence); i++)//ip地址从第五位开始
-		{
-			if(sentence[i] != ' ' && sentence[i] != ','){
-				newip[j++] = sentence[i];
-			}
-			else if(sentence[i] == ',')
-			{
-				num++;
-				if(num == 4)	//ip地址结束
-					break;	//跳出循环
-				newip[j++] = '.';
-			}
+	puts("enter port f");
+	int j = 0;	//ip下标
+	int num = 0;	//标识，的数量
+	char strp1[4] = "\0";
+	char strp2[4] = "\0";
+	//获取ip地址:h1,h2,h3,h4,p1,p2
+	for(int i = 5; i < strlen(sentence); i++)//ip地址从第五位开始
+	{
+		if(sentence[i] != ' ' && sentence[i] != ','){
+			newip[j++] = sentence[i];
 		}
-		num = 0;
-		int k = 0;
-		j = 0;
-		for(int i = 5; i < strlen(sentence); i++)
+		else if(sentence[i] == ',')
 		{
-			if(num == 4)
-				strp1[j++] = sentence[i];
-			else if(num == 5)	
-				strp2[k++] = sentence[i];
-			if(sentence[i] == ',')
-				num++;
-			
+			num++;
+			if(num == 4)	//ip地址结束
+				break;	//跳出循环
+			newip[j++] = '.';
 		}
-		int nump1 = atoi(strp1);
-		int nump2 = atoi(strp2);
-		int port = 256 * nump1 + nump2;		//计算求得port
-		//printf("port函数中的p1和p2分别是%d %d\n", nump1, nump2);
-		//printf("ip地址为：%s\n", newip);
-		memset(sentence, '\0', strlen(sentence));		//空串
-		strcpy(sentence, "200 PORT command successful.\r\n");
-		return port;
 	}
-	else
-		return -1;
+	num = 0;
+	int k = 0;
+	j = 0;
+	for(int i = 5; i < strlen(sentence); i++)
+	{
+		if(num == 4)
+			strp1[j++] = sentence[i];
+		else if(num == 5)	
+			strp2[k++] = sentence[i];
+		if(sentence[i] == ',')
+			num++;
+		
+	}
+	int nump1 = atoi(strp1);
+	int nump2 = atoi(strp2);
+	int port = 256 * nump1 + nump2;		//计算求得port
+	printf("port函数中的p1和p2分别是%d %d\n", nump1, nump2);
+	printf("ip地址为：%s\n", newip);
+	//memset(sentence, '\0', strlen(sentence));		//空串
+	//strcpy(sentence, "200 PORT command successful.\r\n");
+	return port;
+
 }
 /*retr指令处理*/
 int retr(char* sentence, int portconnfd,int pasvlistenfd, int MODE)	//sentence, portconnfd, pasvlistenfd, MODE
