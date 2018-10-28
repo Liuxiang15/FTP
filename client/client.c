@@ -40,11 +40,12 @@ int main(int argc, char **argv) {
 			case SYST:
 			case TYPE:
 				send(sockfd, sentence, strlen(sentence), 0);
-				if(recv(sockfd, sentence, 1024, 0) < 0)
+				if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)
 				{
 					printf("recv error!%s(%d)\n", strerror(errno), errno);  
 					continue; 
 				}
+				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
 				printf("%s\n", sentence);
 				memset(sentence, '\0', CMD_SIZE);		//空串
 				break;
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
 				memset(sentence, '\0', CMD_SIZE);		//空串
 				break;
 			case PASV:
+				MODE = PASVMODE;
 				n = send(sockfd, sentence, CMD_SIZE, 0);  
 				memset(sentence, '\0', CMD_SIZE);	//空串
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
@@ -75,74 +77,75 @@ int main(int argc, char **argv) {
 				}
 			case RETR: 
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
-				
+				testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE);
+			
 		}
 
-		if(strstr(sentence, "QUIT") != NULL || strstr(sentence, "ABOR") != NULL)
-		{
-			n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
-			n = recv(sockfd, sentence, 1024, 0);		//收到第二条指令
-			printf("%s", sentence);
-			close(sockfd);	//传输结束
-			return 0;
-		}
-		else if(strstr(sentence, "RETR") != NULL)
-		{
-			testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE);
-			n = recv(sockfd, sentence, 1024, 0);
-			normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-			printf("%s\n", sentence);
-			memset(sentence, '\0', strlen(sentence));	//空串
-			n = recv(sockfd, sentence, 1024, 0);
-			continue;
-		}
-		else if(strstr(sentence, "STOR") != NULL)
-		{
-			char temp[20] = "\0";
-			strcpy(temp, sentence);
+		// if(strstr(sentence, "QUIT") != NULL || strstr(sentence, "ABOR") != NULL)
+		// {
+		// 	n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
+		// 	n = recv(sockfd, sentence, 1024, 0);		//收到第二条指令
+		// 	printf("%s", sentence);
+		// 	close(sockfd);	//传输结束
+		// 	return 0;
+		// }
+		// else if(strstr(sentence, "RETR") != NULL)
+		// {
+		// 	testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE);
+		// 	n = recv(sockfd, sentence, 1024, 0);
+		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// 	printf("%s\n", sentence);
+		// 	memset(sentence, '\0', strlen(sentence));	//空串
+		// 	n = recv(sockfd, sentence, 1024, 0);
+		// 	continue;
+		// }
+		// else if(strstr(sentence, "STOR") != NULL)
+		// {
+		// 	char temp[20] = "\0";
+		// 	strcpy(temp, sentence);
 			
-			n = send(sockfd, sentence, 1024, 0);
-			memset(sentence, '\0', strlen(sentence));	//空串
-			n = recv(sockfd, sentence, 1024, 0);
-			normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-			printf("%s\n", sentence);
-			memset(sentence, '\0', strlen(sentence));	//空串
-			if(n < 0)	printf("接收150指令出错\n");
-			//这里用到了MODE
-			//!!!testSTOR(temp, sockfd, pasvconnfd, MODE);
-			printf("STOR传输成功\n");
-			n = recv(sockfd, sentence, 1024, 0);
-			normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-			printf("%s\n", sentence);
-			continue;
-		}
-		else if(strstr(sentence, "LIST") != NULL)
-		{
-			n = send(sockfd, sentence, 65535, 0);
-			/*********以下为和助教测试**************/
-			memset(sentence, '\0', strlen(sentence));	//空串
-			n = recv(sockfd, sentence, 65535, 0);
-			printf("%s", sentence);				//!!!此行代码只为本机测试
-			continue;					//!!!此行代码只为本机测试
-			normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-			printf("%s\n", sentence);
-			//!!!testLIST(sentence, portlistenfd, pasvconnfd, sockfd, MODE);	//接收LIST传来的信息
-			memset(sentence, '\0', strlen(sentence));	//空串
-			n = recv(sockfd, sentence, 1024, 0);
-			normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-			printf("%s\n", sentence);	
-			continue;
-		}
-		send(sockfd, sentence, strlen(sentence), 0);
-		n = recv(sockfd, sentence, 1024, 0);
-		normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		if(n < 0)
-		{
-			printf("recv error!%s(%d)\n", strerror(errno), errno);  
-	 		continue; 
-		}
-		printf("%s\n", sentence);
-		memset(sentence, '\0', strlen(sentence));		//空串
+		// 	n = send(sockfd, sentence, 1024, 0);
+		// 	memset(sentence, '\0', strlen(sentence));	//空串
+		// 	n = recv(sockfd, sentence, 1024, 0);
+		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// 	printf("%s\n", sentence);
+		// 	memset(sentence, '\0', strlen(sentence));	//空串
+		// 	if(n < 0)	printf("接收150指令出错\n");
+		// 	//这里用到了MODE
+		// 	//!!!testSTOR(temp, sockfd, pasvconnfd, MODE);
+		// 	printf("STOR传输成功\n");
+		// 	n = recv(sockfd, sentence, 1024, 0);
+		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// 	printf("%s\n", sentence);
+		// 	continue;
+		// }
+		// else if(strstr(sentence, "LIST") != NULL)
+		// {
+		// 	n = send(sockfd, sentence, 65535, 0);
+		// 	/*********以下为和助教测试**************/
+		// 	memset(sentence, '\0', strlen(sentence));	//空串
+		// 	n = recv(sockfd, sentence, 65535, 0);
+		// 	printf("%s", sentence);				//!!!此行代码只为本机测试
+		// 	continue;					//!!!此行代码只为本机测试
+		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// 	printf("%s\n", sentence);
+		// 	//!!!testLIST(sentence, portlistenfd, pasvconnfd, sockfd, MODE);	//接收LIST传来的信息
+		// 	memset(sentence, '\0', strlen(sentence));	//空串
+		// 	n = recv(sockfd, sentence, 1024, 0);
+		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// 	printf("%s\n", sentence);	
+		// 	continue;
+		// }
+		// send(sockfd, sentence, strlen(sentence), 0);
+		// n = recv(sockfd, sentence, 1024, 0);
+		// normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+		// if(n < 0)
+		// {
+		// 	printf("recv error!%s(%d)\n", strerror(errno), errno);  
+	 	// 	continue; 
+		// }
+		// printf("%s\n", sentence);
+		// memset(sentence, '\0', strlen(sentence));		//空串
 	}	
 	
 }

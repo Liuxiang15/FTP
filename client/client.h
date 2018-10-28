@@ -99,7 +99,7 @@ extern int createclientlistenfd(int port)
 }
 extern int createFile(char*filename, char*content)
 {
-	printf("the file name is %s", filename);
+	//printf("the file name is %s", filename);
 	//FILE *fp = fopen(filename, "w");					/*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
 	FILE *fp = fopen(filename, "w");
 	int nFileLen = strlen(content);
@@ -195,7 +195,7 @@ extern  int dealpasv(char* sentence, char *newip)
 	int nump2 = atoi(strp2);
 	int port = 256 * nump1 + nump2;		//计算求得port
 	//printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
-	//printf("dealpasv中的ip地址为：%s\n", newip);
+	//printf("dealpasv中deal的ip地址为：%s\n", newip);
 	//printf("dealpasv函数中的port=%d\n",port);	
 	return port;
 }
@@ -205,6 +205,7 @@ extern int stor(char* sentence, int newconnfd)
 	//这个函数应该还有提取文件名并保存在外部可访问变量的功能要补充,目前默认上传的文件名为temp.txt,提取文件名已经实现
 	char filename[20] = "\0";
 	strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
+	int n;
 	FILE *fp;  		//用来二进制打开文件的 
 	if ((fp = fopen(filename,"rb")) == NULL) {  
 		strcpy(sentence, "Open file failed\n");
@@ -223,7 +224,7 @@ extern int stor(char* sentence, int newconnfd)
 		char sendContent[1024] = "\0";		//！！！！！！！！！！！！！！！！！！！！！！！！！目前默认不超过1KB
 		//printf("stor文件传输中的newconnfd是%d",newconnfd);
 		strcpy(sendContent, sentence);
-		int n = send(newconnfd, sendContent, strlen(sendContent), 0);		//传输文件需要用到newconnfd，???担心在发送sentence的时候执行了以下的赋值操作
+		n = send(newconnfd, sendContent, strlen(sendContent), 0);		//传输文件需要用到newconnfd，???担心在发送sentence的时候执行了以下的赋值操作
 		if(n < 0)
 		{
 			printf("客户端send文件出错\n");	
@@ -253,12 +254,14 @@ extern int retr(char*sentence)
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
 {
-	///在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
+	normalizerecv(sentence);
+	///!!!在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过1024位
 	
 	strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
 	FILE *fp = fopen(filename, "w");
+	int n;
 	//现在只支持PASV 模式下的RETR
 	if(MODE ==PASVMODE){
 		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
@@ -278,15 +281,15 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 		if (testfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
-		int n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
+		n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
 		if(n < 0){
 			printf("PORT模式下RETR文件传输有误\n");
 			return -1;
 		}
 		else{
-			printf("进入了testRETR的创建文件函数\n"); 
+			//printf("进入了testRETR的创建文件函数\n"); 
 			if(createFile(filename, fileContent) == 1){
-				puts("createfile OK");
+				//puts("createfile OK");
 			}
 			else{
 				puts("createfile Error");
@@ -302,11 +305,17 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 	memset(sentence, '\0', CMD_SIZE);		//空串
 	n = recv(sockfd, sentence, CMD_SIZE, 0);		//收到回复的指令
 	if(n < 0)	printf("RETR文件传输完成有误\n");
-	else		printf("%s\n", sentence);
+	else{
+		normalizerecv(sentence);
+		printf("%s\n", sentence);
+	}		
 	memset(sentence, '\0', strlen(sentence));		//空串
 	n = recv(sockfd, sentence, 1024, 0);		//收到回复的指令
 	if(n < 0)	printf("RETRError\n");
-	else		printf("%s\n", sentence);
+	else{
+		printf("%s\n", sentence);
+		normalizerecv(sentence);
+	}
 	return 1;
 }
 

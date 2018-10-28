@@ -75,6 +75,15 @@ extern int judgeCmdType(const char* cmdStr){
 }
 
 
+extern int normalizeRecv(char *sentence){
+	for(int i = 0; i < strlen(sentence); i++){
+		if(sentence[i] == '\r' || sentence[i] == '\n'){
+			sentence[i] = '\0';
+		}
+	}
+	return 1;
+}
+
 
 extern int readFileList(char *rootPath){
 	//由根目录读取包含的文件名和文件夹名
@@ -226,7 +235,7 @@ extern int port(char* sentence, char*newip){
 
 }
 /*retr指令处理*/
-int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, int MODE)	//sentence, portconnfd, pasvlistenfd, MODE
+int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, int MODE, int connfd)	//sentence, portconnfd, pasvlistenfd, MODE
 {
 
 	char filename[100] = "\0";
@@ -238,6 +247,8 @@ int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, in
 			filename[i] = '\0';
 	}
 	printf("The file name is %s\n", filename);
+
+	
 
 	char path[64] = "\0";	//存储当前绝对目录
 	//if (NULL == realpath(relative_path, path))
@@ -260,6 +271,18 @@ int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, in
 		int nFileLen = 0;
 		fseek(fp,0,SEEK_END); //定位到文件末 
 		nFileLen = ftell(fp); //文件长度
+		/*send the first reply*/
+		strcpy(sentence, "50 Opening BINARY mode data connection for ");	
+		strcat(sentence, filename);
+		strcat(sentence, " (");
+		char strnum[20] = "\0"; 
+		snprintf(strnum, 19, "%d", nFileLen);
+		strcat(sentence, strnum);
+		strcat(sentence, " bytes).");
+		send(connfd, sentence, strlen(sentence), 0); 	//发送另一条指令
+
+
+
 		memset(sentence, '\0', strlen(sentence));		//清空
 		fseek(fp,0,SEEK_SET);		//fp指向文件头
 		fread(sentence,1,nFileLen+1,fp);
@@ -274,14 +297,7 @@ int retr(char*relative_path, char* sentence, int portconnfd,int pasvlistenfd, in
 		}
 		close(portconnfd);		//关掉套接字
 		memset(sentence, '\0', strlen(sentence));		//清空
-		/*以下是连接发送的字符串*/
-		strcpy(sentence, "50 Opening BINARY mode data connection for ");	
-		strcat(sentence, filename);
-		strcat(sentence, " (");
-		char strnum[20] = "\0"; 
-		snprintf(strnum, 19, "%d", nFileLen);
-		strcat(sentence, strnum);
-		strcat(sentence, " bytes).");
+		
 		printf("返回文件打开结果%s\n",sentence);		//看返回什么东西 
 		fclose(fp);		//关闭文件
 		printf("%s",sentence);

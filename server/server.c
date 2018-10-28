@@ -143,14 +143,13 @@ int main(int argc, char **argv) {
 						case RETR:
 							//puts("enter RETR");
 							//readFileList(rootPath);
-							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE);
-							n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
+							normalizeRecv(sentence);
+							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE,connfd);
 							n = send(connfd, retrFinish, strlen(retrFinish), 0); 	//发送另一条指令
 							memset(sentence, '\0', strlen(sentence));		//清空
 							break;
 						case STOR:
 							puts("enter STOR\n");
-							
 							memset(sentence, '\0', strlen(sentence));		//清空
 							break;
 						
