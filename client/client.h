@@ -101,7 +101,7 @@ extern int createFile(char*filename, char*content)
 {
 	printf("the file name is %s", filename);
 	//FILE *fp = fopen(filename, "w");					/*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
-	FILE *fp = fopen("test.txt", "w");
+	FILE *fp = fopen(filename, "w");
 	int nFileLen = strlen(content);
 	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
 	{
@@ -253,64 +253,60 @@ extern int retr(char*sentence)
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
 {
+	///在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
 	char filename[20] = "\0";
-	if(MODE == 2)		//PASVMODE
-	{
-		char pasvfileContent[128] = "\0";		//默认传输文件不超过19KB 
-		
-		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-		FILE *fp = fopen(filename, "w");
-		while(1)
+	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过1024位
+	
+	strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
+	FILE *fp = fopen(filename, "w");
+	//现在只支持PASV 模式下的RETR
+	if(MODE ==PASVMODE){
+		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
+		if(readnum > 0)
 		{
-			int readnum = recv(pasvconnfd, pasvfileContent, 128, 0);
-			if(readnum > 0)
-			{
-				fwrite(pasvfileContent, 1, readnum, fp);		//写入新建文件
-			}
-			else
-			{
-				fclose(fp);
-				close(pasvconnfd);	//关闭文件传输和监听
-				return 1;
-			}
+			//size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+			fwrite(fileContent, 1, readnum, fp);		//写入新建文件
 		}
-		
+		else
+		{
+			fclose(fp);
+			close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
+		}
 	}
-	printf("testRETR中MODE=%d\n",MODE);
-
-	int testfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
-	if (testfd == -1) {
+	else if(MODE == PORTMODE){
+		int testfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
+		if (testfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
-	char fileContent[20000] = "\0";
-	int n = recv(testfd, fileContent, 1024, 0);				//接收数据
-	if(n < 0)
-	{
-		printf("文件传输有误\n");
-		return -1;
-	}
-	else
-	{
-		printf("进入了testRETR的创建文件函数\n"); 
-		if(createFile(filename, fileContent) == 1){
-			puts("createfile OK");
+		int n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
+		if(n < 0){
+			printf("PORT模式下RETR文件传输有误\n");
+			return -1;
 		}
 		else{
-			puts("createfile Error");
+			printf("进入了testRETR的创建文件函数\n"); 
+			if(createFile(filename, fileContent) == 1){
+				puts("createfile OK");
+			}
+			else{
+				puts("createfile Error");
+			}
+			close(testfd);			//传输结束,关闭
+			//close(clientlistenfd);	//监听的话继续，只是之前的传输连接关掉
 		}
 	}
-	close(testfd);		//传输结束
-	close(clientlistenfd);	//关掉套接字
+	else{
+
+	}
+	//接下来等待接收server的完结指令
+	memset(sentence, '\0', CMD_SIZE);		//空串
+	n = recv(sockfd, sentence, CMD_SIZE, 0);		//收到回复的指令
+	if(n < 0)	printf("RETR文件传输完成有误\n");
+	else		printf("%s\n", sentence);
 	memset(sentence, '\0', strlen(sentence));		//空串
 	n = recv(sockfd, sentence, 1024, 0);		//收到回复的指令
-	if(n < 0)
-		printf("RETRError\n");
-	printf("%s\n", sentence);
-	memset(sentence, '\0', strlen(sentence));		//空串
-	n = recv(sockfd, sentence, 1024, 0);		//收到回复的指令
-	if(n < 0)
-		printf("RETRError\n");
-	printf("%s\n", sentence);
+	if(n < 0)	printf("RETRError\n");
+	else		printf("%s\n", sentence);
 	return 1;
 }
 

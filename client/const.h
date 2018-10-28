@@ -22,6 +22,7 @@
 #define RNFR 14
 #define RNTO 15
 #define NOCMD 16
+#define ABOR 17
 
 #define NOUSER	0		//还没输入USER指令
 #define NOPASS 4		//输入USER指令后未输入密码
@@ -29,6 +30,9 @@
 #define PORTMODE 2		//输入合法的PORT指令
 #define PASVMODE 3		//输入合法的PASV指令
 #define QUITMODE -1
+
+#define CMD_SIZE 128
+#define CONTENT_SIZE 1024
 
 
 #endif

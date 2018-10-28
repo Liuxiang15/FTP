@@ -128,6 +128,12 @@ int main(int argc, char **argv) {
 								memset(sentence, '\0', strlen(sentence));		//清空
 							}
 							break;
+						case PASV:
+							{
+								MODE = PASVMODE;
+								pasvlistenfd = dealpasv(sentence);	//返回port
+								printf("进入PASV\n");
+							}
 						default:
 							memset(sentence, '\0', strlen(sentence));		//清空
 					}

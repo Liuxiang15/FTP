@@ -118,8 +118,6 @@ int main(int argc, char **argv) {
 		}
 		else if(strstr(sentence, "LIST") != NULL)
 		{
-
-			
 			n = send(sockfd, sentence, 65535, 0);
 			/*********以下为和助教测试**************/
 			memset(sentence, '\0', strlen(sentence));	//空串
