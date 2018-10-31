@@ -26,10 +26,17 @@ extern int MODE;		//作为客户端的状态变量
 extern int normalizeInput(char * sentence)		//把所有输入的字符串后加上\r\n
 {
 	int len = strlen(sentence);
+	// for(int i = 0; i < strlen(sentence); i++){
+	// 	if(sentence[i] == '\n' || sentence[i] == '\t'){
+	// 		sentence[i] = '\0';
+	// 	}
+	// }
 	sentence[len-1] = '\r';
 	strcat(sentence,"\n");//这里默认加上了'\0'字符
 	return 0;
 }
+
+
 
 extern int normalizerecv(char * sentence)		//把所有读入的字符串后加上\r\n
 {
@@ -302,54 +309,78 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 
 	}
 	//接下来等待接收server的完结指令
+	//puts("接收第一条指令");
 	memset(sentence, '\0', CMD_SIZE);		//空串
-	n = recv(sockfd, sentence, CMD_SIZE, 0);		//收到回复的指令
-	if(n < 0)	printf("RETR文件传输完成有误\n");
+	if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
 	else{
 		normalizerecv(sentence);
 		printf("%s\n", sentence);
 	}		
 	memset(sentence, '\0', strlen(sentence));		//空串
-	n = recv(sockfd, sentence, 1024, 0);		//收到回复的指令
-	if(n < 0)	printf("RETRError\n");
-	else{
-		printf("%s\n", sentence);
-		normalizerecv(sentence);
-	}
 	return 1;
 }
 
 /*测试STOR指令*/
-extern int testSTOR(char *sentence, int sockfd, int pasvconnfd, int MODE)
+extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvconnfd, int MODE)
 {
-	if(MODE == 2)	//PASVMODE
-	{
-		printf("进入testSTOR函数\n");
-		char storfileContent[30] = "\0";		//默认传输文件不超过19KB 
-		char filename[20] = "\0";
-		printf("传入的sentence是%s\n", sentence);
-		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-		for(int i = 0; i < strlen(filename); i++)
-		{
-			if(filename[i] == '\r' || filename[i] == '\n')
-				filename[i] = '\0';
+	printf("进入testSTOR函数\n");
+	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB 
+
+	printf("文件名是%s\n", filename);
+	FILE *fp = fopen(filename, "r");
+	if(fp == NULL){
+		printf("文件打开出错\n");
+		return -1;
+	}
+	else
+		printf("文件打开正常\n");
+
+	int fileSize;
+	fseek(fp,0,SEEK_END); //定位到文件末 
+	fileSize = ftell(fp); //文件长度
+	fseek(fp,0,SEEK_SET);		//fp指向文件头
+	
+	printf("stor.c文件大小是%d", fileSize);
+	if(MODE == PORTMODE){
+		puts("进入if语句");
+		int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
+		if (portconnfd == -1) {
+			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
-		printf("文件名是%s\n", filename);
-		FILE *fp = fopen(filename, "rb");
-		if(fp == NULL)
-		{
-			printf("文件打开出错\n");
-			return -1;
-		}
-		else
-			printf("文件打开正常\n");
-		while(1)
-		{
-			int readnum = fread (storfileContent, sizeof(char), 30, fp);	//隐藏危险
+		else{
+			
+			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
 			if(readnum > 0)
 			{
-				printf("进入STOR的传输过程\n");
-				int n = send(pasvconnfd, storfileContent, 30, 0);
+				printf("读取到的文件内容是%s", fileContent);
+				//printf("进入STOR的传输过程\n");
+				int n = send(portconnfd, fileContent, fileSize, 0);
+				if(n < 0)
+				{
+					printf("STORsend失败\n");
+					return -1;
+				}
+			}
+			else
+			{
+				fclose(fp);
+				close(portconnfd);
+				printf("STOR传输文件完成\n");
+				return 1;
+			}
+	
+		}
+	}
+	else if(MODE == PASVMODE)	//PASVMODE
+	{
+		//先获取文件大小（待提取）
+		while(1)
+		{
+			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
+			if(readnum > 0)
+			{
+				//printf("进入STOR的传输过程\n");
+				int n = send(pasvconnfd, fileContent, fileSize, 0);
 				if(n < 0)
 				{
 					printf("STORsend失败\n");
@@ -360,10 +391,11 @@ extern int testSTOR(char *sentence, int sockfd, int pasvconnfd, int MODE)
 			{
 				fclose(fp);
 				close(pasvconnfd);
-				printf("STOR传输文件出错\n");
+				printf("STOR传输文件完成\n");
 				return 1;
 			}
 		}
+		
 	}
 	
 }

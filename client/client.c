@@ -18,16 +18,19 @@ int main(int argc, char **argv) {
 		printf("%s", sentence);
 	}		  
 
-	char*temp = sentence;
+
 	int clienttranfd;		//用于RETR传输文件
 	char newip[20] = "\0";		//存储传输文件端口的ip地址
 	int portport;			//port模式传输文件端口
-	char fileContent[1024] = "\0";	//用来存储传输的文件内容
+	
 	int pasvconnfd;			//client用于连接服务端传输文件的套接字
 	int portlistenfd;
 	int pasvport;		//用来连接pasv的端口	
 	int listport;		//接收list数据端口
 	int listconnfd;		//连接list套接字 
+
+	char filename[CMD_SIZE] = "\0";			//存储RETR和STOR指令的文件名
+	char fileContent[CONTENT_SIZE] = "\0";	//用来存储传输的文件内容
 
 	while(fgets(sentence, CMD_SIZE, stdin) != NULL)
 	{
@@ -77,7 +80,33 @@ int main(int argc, char **argv) {
 				}
 			case RETR: 
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
-				testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE);
+				if(testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE) == 1){
+					puts("226 Transfer complete.");
+					// puts("接收第二条指令");
+					// if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0)	printf("RETRError\n");
+					// else{
+					// 	normalizerecv(sentence);
+					// 	printf("%s\n", sentence);
+					// }
+				}
+				puts("PORTMODE 下RETR结束");
+
+				break;
+			case STOR:
+				if(MODE == PORTMODE){
+					if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
+					strncpy(filename, sentence+5, strlen(sentence)-7);
+					puts("进入PORTMODE下的STOR指令");
+					testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
+					n = recv(sockfd, sentence, CMD_SIZE, 0);
+					normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+					printf("%s\n", sentence);
+					n = recv(sockfd, sentence, CMD_SIZE, 0);
+					normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+					printf("%s\n", sentence);
+				}
+
+
 			
 		}
 

@@ -9,7 +9,12 @@ char systReply[] = "215 UNIX Type: L8\r\n";
 char typeOK[] = "200 Type set to I.\r\n";
 char typeError[] = "503 This ftp only supports TYPE I\r\n";
 char portOK[] = "200 PORT command successful.\r\n";
-char retrFinish[] = "226 Transfer complete.\r\n";
+char transFinish[] = "226 Transfer complete.\r\n";
+
+
+char noPort[] = "503 You have not enter the PORTMODE";
+char noPasv[] = "503 You have not enter the PASVMODE";
+
 
 
 int MODE = NOUSER;					//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
@@ -33,7 +38,7 @@ int handleCmdArgu(int argc, char **argv, char*root){
 int main(int argc, char **argv) {
 	char rootPath[100] = "/tmp";
 	int listenPort = handleCmdArgu(argc, argv, rootPath);
-	chdir(rootPath);//change file content
+	chdir(rootPath);		//change file content
 	
 	int listenfd, connfd;		//服务端最初始的两个套接字
 	char newip[20] = "\0";		//用于传输文件的ip地址
@@ -51,7 +56,6 @@ int main(int argc, char **argv) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			continue;
 			//break;
-			//break;
 		}
 		printf("进入了server的函数\n"); 
 		if(send(connfd, initMsg, strlen(initMsg), 0) < 0)
@@ -63,7 +67,7 @@ int main(int argc, char **argv) {
 		while(1)
 		{	
 			memset(sentence, '\0', sizeof(sentence));
-			n = recv(connfd, sentence, 8192, 0);			
+			n = recv(connfd, sentence, CMD_SIZE, 0);			
 			if(n < 0)
 			{
 				printf("recv error!%s(%d)\n", strerror(errno), errno);  
@@ -73,6 +77,8 @@ int main(int argc, char **argv) {
 			{
 				printf("服务端接受到的字符串为%s", sentence);	
 				int cmd_type = judgeCmdType(sentence);//判断命令类型
+
+				char filename[CMD_SIZE] = "\0";			//存储RETR和STOR指令的文件名
 
 				//根据用户的不同状态进行操作
 				if(MODE == NOUSER){
@@ -134,30 +140,49 @@ int main(int argc, char **argv) {
 								pasvlistenfd = dealpasv(sentence);	//返回port
 								printf("进入PASV\n");
 							}
+							break;
 						default:
+							memset(sentence, '\0', strlen(sentence));		//清空
+							strcpy(sentence, "In LOGGED MOde wrong grammer");
+							n = send(connfd, portOK, strlen(portOK), 0); 	//发送指令还是用之前的connfd
 							memset(sentence, '\0', strlen(sentence));		//清空
 					}
 				}
 				else if(MODE == PORTMODE){
+					
 					switch(cmd_type){
 						case RETR:
 							//puts("enter RETR");
 							//readFileList(rootPath);
-							normalizeRecv(sentence);
-							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE,connfd);
-							n = send(connfd, retrFinish, strlen(retrFinish), 0); 	//发送另一条指令
+							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
+							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename);
+							// puts("发送retr第二条指令：226 Transfer complete.");
+							// n = send(connfd, retrFinish, strlen(retrFinish), 0); 	//发送另一条指令
+							// if(n < 0){
+							// 	printf("Error RETR replt 2 send(): %s(%d)\n", strerror(errno), errno);
+							// }
 							memset(sentence, '\0', strlen(sentence));		//清空
+							puts("PORTMODE下RETR结束");
 							break;
 						case STOR:
+							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
 							puts("enter STOR\n");
+							stor(sentence, portconnfd, pasvlistenfd,connfd, MODE, filename);
 							memset(sentence, '\0', strlen(sentence));		//清空
 							break;
+						default:
+							n = send(connfd, noPort, strlen(noPort), 0); 	
+							memset(sentence, '\0', strlen(sentence));		//清空
 						
 					}
 
 				}
 				else if(MODE == PASVMODE){
-					
+					switch(cmd_type){
+						case RETR:
+							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
+							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename);
+					}
 				}
 				
 				/*
@@ -173,18 +198,6 @@ int main(int argc, char **argv) {
 				}	
 				else if(stor(sentence, portconnfd, pasvlistenfd,connfd, MODE) == 1)		//根据pasvlistenfd新建connfd用于传输或者传入portconnfd传输
 				{
-					if(MODE != PORTMODE || MODE != PASVMODE)
-					{
-						memset(sentence, '\0', strlen(sentence));		//清空
-						strcpy(sentence, "Please login in or set correct mode.");
-						n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-						memset(sentence, '\0', strlen(sentence));		//清空
-						continue;
-					}
-					printf("传入stor函数的pasclistenfd是%d\n",pasvlistenfd);
-					printf("STOR文件成功\n");
-					memset(sentence, '\0', strlen(sentence));		//清空
-					MODE = NOUSER;
 					
 				}		
 				else if(quit(sentence) == 1)
@@ -222,7 +235,7 @@ int main(int argc, char **argv) {
 					printf("此时的指令为%s\n", sentence);
 					n = send(connfd, sentence, strlen(sentence), 0);
 				}*/
-				memset(sentence, '\0', strlen(sentence));		//清空
+				//memset(sentence, '\0', strlen(sentence));		//清空
 			}
 		}
 	}
