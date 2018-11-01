@@ -1,10 +1,10 @@
 #include "client.h"
-#include "common.h"
 
 int MODE = NOUSER;
 int main(int argc, char **argv) {
 	char serverIP[] = "127.0.0.1";
 	int serverListenPort = handleCmdArgu(argc, argv, serverIP);
+	//printf("ip地址和端口分别是%s， %d", serverIP, serverListenPort);
 	int sockfd =  createconnectfd(serverIP, serverListenPort);//本机测试
 	char sentence[CMD_SIZE] = "\0";		//存储用户输入的指令
 	int n;
@@ -38,6 +38,17 @@ int main(int argc, char **argv) {
 		int cmd_type = judgeCmdType(sentence);
 
 		switch(cmd_type){
+			case QUIT:
+			case ABOR:
+			{
+				puts("进入QUIT");
+				n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);
+				printf("%s\n", sentence);
+				close(sockfd);	//传输结束
+				return 0;
+			}
 			case USER:
 			case PASS:
 			case SYST:
@@ -53,6 +64,7 @@ int main(int argc, char **argv) {
 				memset(sentence, '\0', CMD_SIZE);		//空串
 				break;
 			case PORT:
+				//puts("进入PORT");
 				MODE = PORTMODE;
 				portport = port(sentence, newip);
 				if(send(sockfd, sentence, CMD_SIZE, 0) < 0){//发送要上传的文件名
@@ -78,45 +90,44 @@ int main(int argc, char **argv) {
 				if((pasvconnfd = createconnectfd(newip,pasvport)) != -1){//pasv模式下连接,如果连接出错的话再函数内部就会报错了
 					memset(sentence, '\0', CMD_SIZE);	//空串
 				}
-				puts("PASV模式完成");
+				
 				break;
 			case RETR: 
+				//puts("进入RETR");
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
-				if(testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE) == 1){
-					puts("226 Transfer complete.");
-					// puts("接收第二条指令");
-					// if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0)	printf("RETRError\n");
+				// char filename[20] = "\0";
+				// strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
+
+				char retrCopy[CMD_SIZE]="\0";
+				strcpy(retrCopy, sentence);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);
+				printf("%s\n", sentence);
+
+				if(testRETR(retrCopy, portlistenfd, pasvconnfd, sockfd, MODE, 0) == 1){
+					// //正常返回才需要第二次接收
+					// memset(sentence, '\0', CMD_SIZE);		//空串
+					// if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
 					// else{
+					// 	puts("接收第2条指令");
 					// 	normalizerecv(sentence);
 					// 	printf("%s\n", sentence);
-					// }
+					// }		
 				}
-				//puts("RETR结束");
-				MODE = LOGGED;
-				break;
-			case STOR:
-				if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
-				strncpy(filename, sentence+5, strlen(sentence)-7);
-				puts("进入PORTMODE下的STOR指令");
-				testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
-				n = recv(sockfd, sentence, CMD_SIZE, 0);
-				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-				printf("%s\n", sentence);
-				n = recv(sockfd, sentence, CMD_SIZE, 0);
-				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-				printf("%s\n", sentence);
+				
+				// memset(sentence, '\0', strlen(sentence));		//空串
+				puts("RETR结束");
 				MODE = LOGGED;
 				break;
 			case LIST:
 			{
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
-				char temp[CONTENT_SIZE]="\0";
-				strcpy(temp, sentence);
+				char listCopy[CONTENT_SIZE]="\0";
+				strcpy(listCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
 				printf("%s\n", sentence);
-
-				if(testRETR(temp, portlistenfd, pasvconnfd, sockfd, MODE) == 1){
+				if(testRETR(temp, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
 					//puts("LIST结束");
 				}
 				MODE = LOGGED;
@@ -126,6 +137,20 @@ int main(int argc, char **argv) {
 
 				break;
 			}
+			case STOR:
+				if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
+				strncpy(filename, sentence+5, strlen(sentence)-7);
+				//puts("进入PORTMODE下的STOR指令");
+				testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+				printf("%s\n", sentence);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+				printf("%s\n", sentence);
+				MODE = LOGGED;
+				break;
+			
 
 			case MKD:		
 			//A MKD request asks the server to create a new directory.
@@ -166,17 +191,7 @@ int main(int argc, char **argv) {
 				break;
 			}
 
-
-			case QUIT:
-			case ABOR:
-			{
-				n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
-				n = recv(sockfd, sentence, CMD_SIZE, 0);
-				normalizerecv(sentence);
-				printf("%s\n", sentence);
-				close(sockfd);	//传输结束
-				return 0;
-			}
+			
 			
 		}
 	}	

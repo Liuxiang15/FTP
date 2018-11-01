@@ -22,6 +22,7 @@
 #define RNFR 14
 #define RNTO 15
 #define NOCMD 16
+#define ABOR 17
 
 #define NOUSER	0					//还没输入USER指令
 #define NOPASS 4				    //输入USER指令后未输入密码

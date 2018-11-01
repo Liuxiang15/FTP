@@ -15,12 +15,36 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "const.h"
 
 
+extern int handleCmdArgu(int argc, char **argv, char*root){
+	//返回端口号默认21 
+	int port = 21;
+	for(int i = 1; i < argc; i++){
+		if(!strcmp(argv[i], "-port")){
+			port = atoi(argv[++i]);
+		}
+		else if(!strcmp(argv[i], "-root")){
+			strcpy(root, argv[i]);
+		}
+	}
+	return port;
+}
 
-extern int judgeCmdType(const char* cmdStr){
+
+extern int normalizeRecv(char *sentence){
+	for(int i = 0; i < strlen(sentence); i++){
+		if(sentence[i] == '\r' || sentence[i] == '\n'){
+			sentence[i] = '\0';
+		}
+	}
+	return 1;
+}
+
+extern int judgeCmdType(char* cmdStr){
 	normalizeRecv(cmdStr);
     if(strncmp(cmdStr, "USER", 4) == 0){
         return USER;
@@ -70,33 +94,12 @@ extern int judgeCmdType(const char* cmdStr){
     else if(strncmp(cmdStr, "RNTO", 4) == 0){
         return RNTO;
     }
+	else if(strncmp(cmdStr, "ABOR", 4) == 0){
+		return ABOR;
+	}
     else{
         return NOCMD;
     }
-}
-
-extern int handleCmdArgu(int argc, char **argv, char*root){
-	//返回端口号默认21 
-	int port = 21;
-	for(int i = 1; i < argc; i++){
-		if(!strcmp(argv[i], "-port")){
-			port = atoi(argv[++i]);
-		}
-		else if(!strcmp(argv[i], "-root")){
-			strcpy(root, argv[i]);
-		}
-	}
-	return port;
-}
-
-
-extern int normalizeRecv(char *sentence){
-	for(int i = 0; i < strlen(sentence); i++){
-		if(sentence[i] == '\r' || sentence[i] == '\n'){
-			sentence[i] = '\0';
-		}
-	}
-	return 1;
 }
 
 
@@ -256,6 +259,58 @@ extern int getFileName(char*sentence, char*filename){
 	return 0;
 }
 
+/*list处理*/
+extern int handleLIST(int connfd, int pasvlistenfd, int portconnfd, int MODE)
+{
+	char listContent[CONTENT_SIZE] = "\0";
+	system("ls -l > list.txt");//导出在list.txt文件
+	int nFileLen = 0;
+	FILE* fp = fopen("list.txt", "r");
+	fseek(fp,0,SEEK_END); //定位到文件末 
+	nFileLen = ftell(fp); //文件长度
+	fseek(fp,0,SEEK_SET);		//fp指向文件头
+	fread(listContent,sizeof(char),nFileLen+1,fp);
+	fclose(fp);
+	if(MODE == PORTMODE){
+		int n = send(portconnfd, listContent, strlen(listContent), 0);	//传输文件需要用到portconnfd
+		if(n < 0){
+			printf("文件传输有误\n");
+			return -1;
+		}
+		close(portconnfd);
+		printf("PORT模式下list函数中send成功\n");
+	}
+	else if(MODE == PASVMODE){
+
+		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);		//pasv用于传输
+		if (pasvconnfd == -1) {
+			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+			return -1;
+		}
+		//printf("PASV模式下list函数中accept成功\n");
+		int n = send(pasvconnfd, listContent, CONTENT_SIZE, 0);
+		if(n < 0){
+			printf("文件传输有误\n");
+			return -1;
+		}
+		else{
+			//printf("文件传输得到的内容是%s\n", fileContent);
+			close(pasvconnfd);		//传输结束
+		}
+	}
+	else{
+		return -2;
+	}
+	
+	if(rmdir("list.txt") == 0){
+		printf("删除list.txt成功");
+	}
+	else{
+		printf("删除list.txt失败");
+	}
+	return 1;
+}
+
 /*retr指令处理*/
 extern int retr(char*relative_path, char* sentence, int portconnfd,
 	int pasvlistenfd, int MODE, int connfd,char filename[])	//sentence, portconnfd, pasvlistenfd, MODE
@@ -266,10 +321,10 @@ extern int retr(char*relative_path, char* sentence, int portconnfd,
 	char path[64] = "\0";	//存储当前绝对目录
 	FILE *fp = fopen(filename,"rb");  		//rb,read binary file
 	if (fp == NULL){  
-		strcpy(sentence, "Open file failed\n");
+		strcpy(sentence, "550 Open file failed\r\n");
 		perror("Open file failed\n");  
 		printf("异常退出retr函数\n");
-		return -1;
+		return -2;
 	}  
 	else{
 		//统计txt文件的字节数,只统计字节数是不够的，应该先发送完之后回复字节数
@@ -284,7 +339,11 @@ extern int retr(char*relative_path, char* sentence, int portconnfd,
 		snprintf(strnum, 19, "%d", nFileLen);
 		strcat(sentence, strnum);
 		strcat(sentence, " bytes).\r\n");
-		send(connfd, sentence, strlen(sentence), 0); 	//发送另一条指令
+
+		// send(connfd, sentence, strlen(sentence), 0); 	//发送第一条指令
+
+		// char transFinish[] = "226 Transfer complete.\r\n";
+		// send(connfd, transFinish, strlen(transFinish), 0);
 
 		memset(sentence, '\0', strlen(sentence));		//清空
 		fseek(fp,0,SEEK_SET);		//fp指向文件头
@@ -304,26 +363,37 @@ extern int retr(char*relative_path, char* sentence, int portconnfd,
 			}
 			close(portconnfd);					//关掉port传输套接字
 			memset(sentence, '\0', strlen(sentence));		//清空
+			puts("在PORT模式下RETR完成");
+			char transFinish[] = "226 Transfer complete.\r\n";
+			n = send(connfd, transFinish, strlen(transFinish), 0); 
+			if(n < 0)	puts("发送transFInish");
+			else puts("没有发送transFinish2");
+			// n = send(connfd, "226 Transfer complete.\r\n", CONTENT_SIZE, 0);
+			return 1;
 		}
 		else if(MODE == PASVMODE){
+			
 			//int portconnfd
-			int n = recv(portconnfd, fileContent, CONTENT_SIZE, 0);
+			int pasvconnfd = accept(pasvlistenfd, NULL, NULL);	//testfd用于传输
+			int n = send(pasvconnfd, fileContent, CONTENT_SIZE, 0);
 			if(n < 0){
 				printf("文件传输有误\n");
 				return -1;
 			}
 			else{
-				//printf("文件传输得到的内容是%s\n", fileContent);
-				printf("stor创建的文件名是%s", filename);
-				createFile(fileContent,filename);
-				puts("创建文件完成");
-				close(portconnfd);		//传输结束
+				close(pasvconnfd);		//传输结束
+				//close(pasvlistenfd);
+				memset(sentence, '\0', strlen(sentence));		//清空
+
+				char transFinish[] = "226 Transfer complete.\r\n";
+				n = send(connfd, transFinish, strlen(transFinish), 0); 
+				if(n < 0)	puts("发送transFInish");
+				else puts("没有发送transFinish2");	
+				puts("在PASV模式下RETR完成");
+				// n = send(connfd, "226 Transfer complete.\r\n", CONTENT_SIZE, 0);
 			}
-			
+			return 1;
 		}
-		//printf("返回文件打开结果%s\n",sentence);		//看返回什么东西 
-		
-		return 1;
 	}
 }
 
@@ -343,23 +413,28 @@ extern int stor(char*sentence, int portconnfd, int pasvlistenfd, int connfd, int
 		else{
 			createFile(fileContent,filename);
 			close(portconnfd);
-			memset(sentence, '\0', strlen(sentence));		//清空
-			strcpy(sentence, "Server has successfully store the file");
-			n = send(connfd, sentence, strlen(sentence), 0);	//发送第1条指令
+			
 			memset(sentence, '\0', strlen(sentence));		//清空
 			strcpy(sentence, "226 Transfer complete.\r\n");
 			n = send(connfd, sentence, strlen(sentence), 0);	//发送第2条指令
+
+			memset(sentence, '\0', strlen(sentence));		//清空
+			strcpy(sentence, "Server has successfully store the file");
+			n = send(connfd, sentence, strlen(sentence), 0);	//发送第1条指令
 			return 1;
 		}
 	}
 	else if(MODE == PASVMODE){
+		
 		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);		//pasv用于传输
 		if (pasvconnfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			return -1;
 		}
 		printf("PASV模式下stor函数中accept成功\n");
+		printf("1server接收到的内容是：%s", fileContent);
 		n = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
+		printf("2server接收到的内容是：%s", fileContent);
 		if(n < 0){
 			printf("文件传输有误\n");
 			return -1;
@@ -371,7 +446,7 @@ extern int stor(char*sentence, int portconnfd, int pasvlistenfd, int connfd, int
 		}
 
 		memset(sentence, '\0', strlen(sentence));		//清空
-		strcpy(sentence, "Server has successfully store the file");
+		strcpy(sentence, "Server has successfully store the file.\r\n");
 		n = send(connfd, sentence, strlen(sentence), 0);	//发送第1条指令
 		memset(sentence, '\0', strlen(sentence));		//清空
 		strcpy(sentence, "226 Transfer complete.\r\n");
@@ -381,28 +456,62 @@ extern int stor(char*sentence, int portconnfd, int pasvlistenfd, int connfd, int
 	else{
 
 	}
-	
-	
-	
-	
+}
+
+//生成随机端口号
+extern int random_port()
+{
+    srand((unsigned)time(0));
+    return (rand() % 45536 + 20000);
+}
+
+//根据端口号生成字符串h1,h2,h3,h4,p1,p2
+extern void getIpPort(char *ip, int port, struct sockaddr_in pasv_addr)
+{
+    strcpy(ip, "(");
+    char temp[20];
+    inet_ntop(AF_INET, &pasv_addr.sin_addr, temp, sizeof(temp));
+    int i;
+    size_t len = strlen(temp);
+    for(i = 0; i < len; i++)
+        if(temp[i] == '.')
+            temp[i] = ',';
+    strcat(ip, temp);
+
+    char num[3];
+    sprintf(num, ",%d,", port / 256);
+    strcat(ip, num);
+    sprintf(num, "%d", port % 256);
+    strcat(ip, num);
+
+    strcat(ip, ")\r\n");
 }
 
 extern int dealpasv(char*sentence)
 {
 	int pasvlistenfd;
-	memset(sentence, '\0', strlen(sentence));		//清空
-	strcpy(sentence, "227 Entering Passive Mode (127,0,0,1,102,109)");
+	int pasvPort = random_port();
+	//strcpy(sentence, "227 Entering Passive Mode (127,0,0,1,102,109)");
+	
 	/*建立监听*/
 	if ((pasvlistenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		printf("Error socket(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-	struct sockaddr_in newaddr;
-	memset(&newaddr, 0, sizeof(newaddr));
-	newaddr.sin_family = AF_INET;
-	newaddr.sin_port = htons(26221);			//按照助教给的端口102*256+109=26221
-	newaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	if (bind(pasvlistenfd, (struct sockaddr*)&newaddr, sizeof(newaddr)) == -1) {		//bind
+	struct sockaddr_in pasv_addr;
+	memset(&pasv_addr, 0, sizeof(pasv_addr));
+	pasv_addr.sin_family = AF_INET;
+	//pasv_addr.sin_port = htons(26221);			//按照助教给的端口102*256+109=26221
+	pasv_addr.sin_port = htons(pasvPort);
+	pasv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	memset(sentence, '\0', strlen(sentence));		//清空
+	strcpy(sentence, "227 Entering Passive Mode ");
+	char ipPort[100] = "\0";
+	getIpPort(ipPort, pasvPort, pasv_addr);
+	strcat(sentence, ipPort);
+
+	if (bind(pasvlistenfd, (struct sockaddr*)&pasv_addr, sizeof(pasv_addr)) == -1) {		//bind
 		printf("Error bind(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
@@ -414,19 +523,7 @@ extern int dealpasv(char*sentence)
 	printf("dealpasv函数中监听成功\n");
 	return pasvlistenfd;
 }
-/*QUIT和ABOR指令一起处理*/
-extern int quit(char*sentence)
-{
-	char *msg = "QUIT";
-	if(strstr(sentence, msg) != NULL ||strstr(sentence, "ABOR"))
-	{
-		memset(sentence, '\0', strlen(sentence));		//清空
-		strcpy(sentence, "221 Goodbye.\r\n");
-		return 1;		
-	}
-	return -1;
-	
-}
+
 /*CWD指令处理*/
 
 extern int handleCWD(char*sentence)
@@ -442,8 +539,24 @@ extern int handleCWD(char*sentence)
 	printf("current absolute path:%s\n", path);
 	strncpy(suffix, sentence+4, strlen(sentence)-4);//获取文件夹名
 	//!!!应该判断当前文件夹是否存在
-	strcat(path,"/");
-	strcat(path,suffix);
+	if(strcmp(sentence, "..") == 0){
+		printf("用户想要回退操作");
+		int len = strlen(sentence);
+		int maxPos = 0;
+		for(int pos = 0;  pos < len; pos++){
+			//查找最后一个反斜线所在的位置
+			if(sentence[pos] == '\\'){
+				maxPos = pos;
+			}
+		}
+		strncpy(path, sentence, (maxPos+1));
+	}
+	else{
+		strcat(path,"/");
+		strcat(path,suffix);
+	}
+	
+
 	//printf("suffix=%s\n", suffix);
 	printf("修改后的目录是：%s",path);
 	chdir(path);	//修改当前工作目录
@@ -494,71 +607,27 @@ extern int handleRNFR(char*sentence){
 		perror("Open dir error.");
 		return -1;
 	}
+	printf("filename is %s", filename);
 	while((ptr = readdir(dir)) != NULL){
 		if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
 			continue;
 		else if(ptr->d_type == 8 && strcmp(filename, ptr->d_name) == 0) { //file
-			//printf("file_name:%s/%s\n",rootPath,ptr->d_name);
-			return 1;
+			printf("file_name:%s/%s\n",rootPath,ptr->d_name);
+			//return 1;
 		} 
 		else if(ptr->d_type == 4 && strcmp(filename, ptr->d_name) == 0){	//dir
+		
 			//针对文件夹可有其他的操作，这里只获取文件名
-			//printf("dir_name:%s/%s\n",rootPath,ptr->d_name);
-			return 1;
+			printf("dir_name:%s/%s\n",rootPath,ptr->d_name);
+			//return 1;
 		}
 	}
 	closedir(dir);
-	return 0;
+	return 1;
 }
 
 /*list处理*/
-extern int handleLIST(int connfd, int pasvlistenfd, int portconnfd, int MODE)
-{
-	char listContent[CONTENT_SIZE] = "\0";
-	system("ls -l > list.txt");//导出在list.txt文件
-	int nFileLen = 0;
-	FILE* fp = fopen("list.txt", "r");
-	fseek(fp,0,SEEK_END); //定位到文件末 
-	nFileLen = ftell(fp); //文件长度
-	fseek(fp,0,SEEK_SET);		//fp指向文件头
-	fread(listContent,sizeof(char),nFileLen+1,fp);
-	if(MODE == PORTMODE){
-		int n = send(portconnfd, listContent, strlen(listContent), 0);	//传输文件需要用到portconnfd
-		if(n < 0){
-			printf("文件传输有误\n");
-			return -1;
-		}
-		close(portconnfd);
-		printf("PORT模式下list函数中send成功\n");
-	}
-	else if(MODE == PASVMODE){
 
-		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);		//pasv用于传输
-		if (pasvconnfd == -1) {
-			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
-			return -1;
-		}
-		printf("PASV模式下list函数中accept成功\n");
-		int n = send(pasvconnfd, listContent, CONTENT_SIZE, 0);
-		if(n < 0){
-			printf("文件传输有误\n");
-			return -1;
-		}
-		else{
-			//printf("文件传输得到的内容是%s\n", fileContent);
-			close(pasvconnfd);		//传输结束
-		}
-	}
-	else{
-		return -2;
-	}
-	
 
-	//send(connfd, listcontent, strlen(listcontent), 0);		//传输文件需要用到portconnfd
-	fclose(fp);
-	if(rmdir("list.txt") == 0){
-		printf("删除list.txt成功");
-	}
-	return 1;
-}
+
 #endif 

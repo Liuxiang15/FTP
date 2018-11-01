@@ -22,6 +22,20 @@
 
 #include "const.h"
 
+extern int handleCmdArgu(int argc, char **argv, char*ip){
+	//返回监听端口号默认21,并设置server的ip地址，默认127.0.0.1
+	int port = 21;
+	for(int i = 1; i < argc; i++){
+		if(!strcmp(argv[i], "-port")){
+			port = atoi(argv[++i]);
+		}
+		else if(!strcmp(argv[i], "-ip")){
+			strcpy(ip, argv[i]);
+		}
+	}
+	return port;
+}
+
 extern int normalizeInput(char * sentence)		//把所有输入的字符串后加上\r\n
 {
 	int len = strlen(sentence);
@@ -52,6 +66,63 @@ extern int normalizerecv(char * sentence)		//把所有读入的字符串后加�
 		}
 	}
 	return 0;
+}
+
+extern int judgeCmdType(const char* cmdStr){
+    if(strncmp(cmdStr, "USER", 4) == 0){
+        return USER;
+    }
+    else if(strncmp(cmdStr, "PASS", 4) == 0){
+        return PASS;
+    }
+    else if(strncmp(cmdStr, "RETR", 4) == 0){
+        return RETR;
+    }
+    else if(strncmp(cmdStr, "STOR", 4) == 0){
+        return STOR;
+    }
+    else if(strncmp(cmdStr, "QUIT", 4) == 0){
+        return QUIT;
+    }
+    else if(strncmp(cmdStr, "SYST", 4) == 0){
+        return SYST;
+    }
+    else if(strncmp(cmdStr, "TYPE", 4) == 0){
+        return TYPE;
+    }
+    else if(strncmp(cmdStr, "PORT", 4) == 0){
+        return PORT;
+    }
+    else if(strncmp(cmdStr, "PASV", 4) == 0){
+        return PASV;
+    }
+    else if(strncmp(cmdStr, "MKD", 3) == 0){
+        return MKD;
+    }
+    else if(strncmp(cmdStr, "CWD", 3) == 0){
+        return CWD;
+    }
+    else if(strncmp(cmdStr, "PWD", 3) == 0){
+        return PWD;
+    }
+    else if(strncmp(cmdStr, "LIST", 4) == 0){
+        return LIST;
+    }
+    else if(strncmp(cmdStr, "RMD", 3) == 0){
+        return RMD;
+    }
+    else if(strncmp(cmdStr, "RNFR", 4) == 0){
+        return RNFR;
+    }
+    else if(strncmp(cmdStr, "RNTO", 4) == 0){
+        return RNTO;
+    }
+	else if(strncmp(cmdStr, "ABOR", 4) == 0){
+		return ABOR;
+	}
+    else{
+        return NOCMD;
+    }
 }
 
 /*创建并返回客户端用于连接的套接字*/
@@ -200,9 +271,9 @@ extern  int dealpasv(char* sentence, char *newip)
 	int nump1 = atoi(strp1);
 	int nump2 = atoi(strp2);
 	int port = 256 * nump1 + nump2;		//计算求得port
-	printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
-	printf("dealpasv中deal的ip地址为：%s\n", newip);
-	printf("dealpasv函数中的port=%d\n",port);	
+	//printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
+	//printf("dealpasv中deal的ip地址为：%s\n", newip);
+	//printf("dealpasv函数中的port=%d\n",port);	
 	return port;
 }
 /*stor指令处理*/
@@ -250,24 +321,40 @@ extern int stor(char* sentence, int newconnfd)
 }
 
 /*测试retr函数*/
-extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
+extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, 
+char*filename, int listFlag)
 {
-	//printf("进入testRETR函数\n");
+
+	
+	char temp[100] = "\0";
+	if(recv(sockfd, temp, CMD_SIZE, 0) <= 0)	printf("RETRError\n");
+	else{
+		puts("接收第一条指令");
+		normalizerecv(temp);
+		printf("%s\n", temp);
+		if(strstr(temp, "550") != NULL){
+			return -1;
+		}
+	}
+
+	memset(temp, '\0', strlen(temp));
+
 	normalizerecv(sentence);
 	///!!!在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
-	
-	
-	//特殊处理LIST情况
-	int listflag = 0;
-	if(strncmp(sentence, "LIST", 4) == 0){
+	if(listflag == 1){
 		strcpy(filename, "list.txt");
-		listflag = 1;
 	}
-	else{
-		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-	}
+	//特殊处理LIST情况
+	// int listflag = 0;
+	// if(strncmp(sentence, "LIST", 4) == 0){
+	// 	strcpy(filename, "list.txt");
+	// 	listflag = 1;
+	// }
+	// else{
+	// 	strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
+	// }
 	//printf("传入参数是%s", sentence);
 	//printf("文件名是%s", filename);
 
@@ -276,7 +363,7 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 	if(MODE == PASVMODE){
 		//puts("进入testRETR函数的PASVMODE判断中");
 		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
-		printf("PASVMODE下的RETR的内容是：%s\n", fileContent);
+		printf("文件内容%s", fileContent);
 		if(readnum > 0)
 		{
 			//size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
@@ -288,7 +375,7 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			}
 			else{
 				if(createFile(filename, fileContent) == 1){
-					puts("createfile OK");
+					//puts("createfile OK");
 				}
 				else{
 					puts("createfile Error");
@@ -297,7 +384,6 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 		}
 		else
 		{
-			//fclose(fp);
 			close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
 		}
 	}
@@ -319,8 +405,8 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 				printf("%s", fileContent);
 			}
 			else{
-				if(createFile(filename, fileContent) == 1){
-					puts("createfile OK");
+				if(createFile(filename, fileContent) == 1){	
+					memset(sentence, '\0', strlen(sentence));		//空串
 				}
 				else{
 					puts("createfile Error");
@@ -328,57 +414,45 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			}
 			
 			close(testfd);			//传输结束,关闭
-			
-			//close(clientlistenfd);	//监听的话继续，只是之前的传输连接关掉
+			close(clientlistenfd);	//监听的话继续，只是之前的传输连接关掉
 		}
 	}
 	
-
-	
-	//接下来等待接收server的完结指令
-	//puts("接收第一条指令");
-	memset(sentence, '\0', CMD_SIZE);		//空串
-	if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
-	else{
-		normalizerecv(sentence);
-		printf("%s\n", sentence);
-	}		
-	memset(sentence, '\0', strlen(sentence));		//空串
 	return 1;
 }
 
 /*测试STOR指令*/
 extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvconnfd, int MODE)
 {
-	printf("进入testSTOR函数\n");
+	//printf("进入testSTOR函数\n");
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB 
 
-	printf("文件名是%s\n", filename);
+	//printf("文件名是%s\n", filename);
 	FILE *fp = fopen(filename, "r");
 	if(fp == NULL){
 		printf("文件打开出错\n");
 		return -1;
 	}
-	else
-		printf("文件打开正常\n");
+	
 
 	int fileSize;
 	fseek(fp,0,SEEK_END); //定位到文件末 
 	fileSize = ftell(fp); //文件长度
 	fseek(fp,0,SEEK_SET);		//fp指向文件头
 	
-	printf("stor.c文件大小是%d", fileSize);
+	//printf("stor.c文件大小是%d", fileSize);
 	if(MODE == PORTMODE){
-		puts("进入if语句");
+		//puts("进入if语句");
 		int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
 		if (portconnfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
 		else{
-			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
+			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次 
+			fclose(fp); 
 			if(readnum > 0)
 			{
-				printf("读取到的文件内容是%s", fileContent);
+				//printf("读取到的文件内容是%s", fileContent);
 				//printf("进入STOR的传输过程\n");
 				int n = send(portconnfd, fileContent, fileSize, 0);
 				if(n < 0)
@@ -386,14 +460,11 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 					printf("STORsend失败\n");
 					return -1;
 				}
-			}
-			else
-			{
-				fclose(fp);
+				close(portlistenfd);
 				close(portconnfd);
-				printf("STOR传输文件完成\n");
-				return 1;
+				//printf("STOR传输文件完成\n");
 			}
+			
 	
 		}
 	}
@@ -410,56 +481,11 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 				printf("STORsend失败\n");
 				return -1;
 			}
-		}
-		else
-		{
 			fclose(fp);
 			close(pasvconnfd);
-			printf("STOR传输文件完成\n");
-			return 1;
+			// printf("STOR传输文件完成\n");
 		}
 	}
 }
 
-/**/
-/*测list函数*/
-// extern int testLIST(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
-// {
-// 	printf("进入testRETR函数\n");
-// 	FILE *fp;
-// 	if(MODE == PASVMODE)			//PASVMODE
-// 	{
-// 		char pasvfileContent[128] = "\0";		//默认传输文件不超过19KB 
-// 		fp = fopen("list.txt", "w");
-// 		if(fp == NULL)
-// 		{
-// 			printf("打开list.txt文件失败\n");
-// 			return 0;
-// 		}
-		
-// 		int readnum = recv(pasvconnfd, pasvfileContent, 128, 0);
-// 		if(readnum > 0)
-// 		{
-// 			fwrite(pasvfileContent, 1, readnum, fp);		//写入新建文件
-// 		}
-// 		else{
-// 			fclose(fp);
-// 			close(pasvconnfd);	//关闭文件传输和监听
-// 			
-// 		}		
-// 	}
-// 	printf("LIST已经全部导入list.txt文件里\n");
-// 	char line[1024] = "\0";
-// 	fp = fopen("list.txt", "r");
-// 	if(fp == NULL)
-// 	{
-// 		printf("打开list.txt文件失败\n");
-// 		return 0;
-// 	}
-// 	while(fgets(line, 1024, fp))
-// 	{
-// 		printf("%s\n", line);
-// 	}
-// 	return 0;
-// }
 #endif
