@@ -75,6 +75,20 @@ extern int judgeCmdType(const char* cmdStr){
     }
 }
 
+extern int handleCmdArgu(int argc, char **argv, char*root){
+	//返回端口号默认21 
+	int port = 21;
+	for(int i = 1; i < argc; i++){
+		if(!strcmp(argv[i], "-port")){
+			port = atoi(argv[++i]);
+		}
+		else if(!strcmp(argv[i], "-root")){
+			strcpy(root, argv[i]);
+		}
+	}
+	return port;
+}
+
 
 extern int normalizeRecv(char *sentence){
 	for(int i = 0; i < strlen(sentence); i++){
@@ -414,109 +428,137 @@ extern int quit(char*sentence)
 	
 }
 /*CWD指令处理*/
-extern int cwd(char*sentence)
+
+extern int handleCWD(char*sentence)
 {
-	char *msg = "CWD";	
-	char suffix[20] = "\0";
-	if(strstr(sentence, msg) != NULL && strchr(sentence, '/'))
-	{
-		printf("进入cwd函数\n");
-		char path[64] = "\0";	//存储当前绝对目录
-		if (NULL == realpath("./", path))
-		{
-		    printf("***Error***\n");
-		    return -1;
-		}
-		printf("current absolute path:%s\n", path);
-		strncpy(suffix, sentence+4, strlen(sentence)-4);
-		strcat(path,suffix);
-		printf("suffix=%s\n", suffix);
-		printf("path=%s\n", path);
-		//printf("修改后的目录是：%s",path);
-		chdir(path);	//修改当前工作目录
-		memset(sentence, '\0',strlen(sentence));//清空
-		strcpy(sentence, "250:the directory was successfully reached.\r\n");
-		return 1;		
-	}
-	return -1;
+	char suffix[100] = "\0";
 	
-}
-
-extern int mkd(char*sentence)
-{
-	//没有考虑创建失败的情况
-	char *msg = "MKD";
-	char filename[20] = "\0";
-	if(strstr(sentence, msg) != NULL)
-	{
-		
-		strncpy(filename, sentence+4, strlen(sentence)-5);
-		printf("filename=%s\n", filename);
-		mkdir(filename,0777);		
-		/*
-		//权限为0777，即拥有者权限为读、写、执行//拥有者所在组的权限为读、写、执行//其它用户的权限为读、写、执行
-		*/
-		strcpy(sentence, "250:the directory was successfully created\r\n");
-		return 1;
-	}
-	return -1;
-}
-
-
-extern int rmd(char *sentence)
-{
-	char *msg = "RMD";
-	printf("传入的指令是%s\n", sentence);
-	if(strstr(sentence, msg) != NULL)
-	{
-		char delfile[20] = "\0";
-		strncpy(delfile, sentence+4, strlen(sentence)-5);
-		char order[64] = "rm -r ";
-		strcat(order, delfile);
-		for(int i = 0; i < strlen(order); i++)
-		{
-			if(order[i] == '$' || order[i] == '\n'||order[i] == '\r')
-			{
-				order[i] = '\0';
-			}
-		}
-		system("pwd");
-		system(order);
-		strcpy(sentence, "250:the directory was successfully removed\r\n");
-		return 1;
-	}
-	return -1;
-}
-
-
-/*list处理*/
-extern int list(int connfd)
-{
-	/*DIR * dir;
-	struct dirent *ptr;
 	char path[64] = "\0";	//存储当前绝对目录
 	if (NULL == realpath("./", path))
 	{
-	    printf("***Error***\n");
-	    return -1;
+		printf("***Error***\n");
+		return -1;
 	}
 	printf("current absolute path:%s\n", path);
-	dir = opendir(path);
-	while((ptr = readdir(dir)) != NULL)
-	{
-		printf("%s\n", ptr->d_name);
+	strncpy(suffix, sentence+4, strlen(sentence)-4);//获取文件夹名
+	//!!!应该判断当前文件夹是否存在
+	strcat(path,"/");
+	strcat(path,suffix);
+	//printf("suffix=%s\n", suffix);
+	printf("修改后的目录是：%s",path);
+	chdir(path);	//修改当前工作目录
+	memset(sentence, '\0',strlen(sentence));//清空
+	return 1;		
+
+	
+}
+
+
+extern int handleRMD(char *sentence)
+{
+	
+	char delfile[100] = "\0";
+	strncpy(delfile, sentence+4, strlen(sentence)-4);
+	if(rmdir(delfile) == 0){
+		return 1;
 	}
-	//close(dir);*/
-	char listcontent[1024] = "\0";
-	system("ls -l > mylist.txt");//导出在list.txt文件
+	else	return -1;
+	// printf("要删除的文件路径是：%s", delfile);
+	// char order[10] = "rm -r ";
+	// strcat(order, delfile);
+	// for(int i = 0; i < strlen(order); i++)
+	// {
+	// 	if(order[i] == '$' || order[i] == '\n'||order[i] == '\r')
+	// 	{
+	// 		order[i] = '\0';
+	// 	}
+	// }
+	// system("pwd");
+	// system(order);
+	// strcpy(sentence, "250:the directory was successfully removed\r\n");
+	return 1;
+	
+}
+
+
+
+extern int handleRNFR(char*sentence){
+	char filename[20] = "\0";
+	strncpy(filename, sentence+4, strlen(sentence)-4);
+	char rootPath[100] = "\0";
+	realpath("./", rootPath);
+
+	DIR *dir;
+	struct dirent *ptr;
+	if((dir = opendir(rootPath)) == NULL){
+		perror("Open dir error.");
+		return -1;
+	}
+	while((ptr = readdir(dir)) != NULL){
+		if(strcmp(ptr->d_name,".")==0 || strcmp(ptr->d_name,"..")==0)    ///current dir OR parrent dir
+			continue;
+		else if(ptr->d_type == 8 && strcmp(filename, ptr->d_name) == 0) { //file
+			//printf("file_name:%s/%s\n",rootPath,ptr->d_name);
+			return 1;
+		} 
+		else if(ptr->d_type == 4 && strcmp(filename, ptr->d_name) == 0){	//dir
+			//针对文件夹可有其他的操作，这里只获取文件名
+			//printf("dir_name:%s/%s\n",rootPath,ptr->d_name);
+			return 1;
+		}
+	}
+	closedir(dir);
+	return 0;
+}
+
+/*list处理*/
+extern int handleLIST(int connfd, int pasvlistenfd, int portconnfd, int MODE)
+{
+	char listContent[CONTENT_SIZE] = "\0";
+	system("ls -l > list.txt");//导出在list.txt文件
 	int nFileLen = 0;
-	FILE* fp = fopen("mylist.txt", "r");
+	FILE* fp = fopen("list.txt", "r");
 	fseek(fp,0,SEEK_END); //定位到文件末 
 	nFileLen = ftell(fp); //文件长度
 	fseek(fp,0,SEEK_SET);		//fp指向文件头
-	fread(listcontent,1,nFileLen+1,fp);
-	int n = send(connfd, listcontent, strlen(listcontent), 0);		//传输文件需要用到portconnfd
+	fread(listContent,sizeof(char),nFileLen+1,fp);
+	if(MODE == PORTMODE){
+		int n = send(portconnfd, listContent, strlen(listContent), 0);	//传输文件需要用到portconnfd
+		if(n < 0){
+			printf("文件传输有误\n");
+			return -1;
+		}
+		close(portconnfd);
+		printf("PORT模式下list函数中send成功\n");
+	}
+	else if(MODE == PASVMODE){
+
+		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);		//pasv用于传输
+		if (pasvconnfd == -1) {
+			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+			return -1;
+		}
+		printf("PASV模式下list函数中accept成功\n");
+		int n = send(pasvconnfd, listContent, CONTENT_SIZE, 0);
+		if(n < 0){
+			printf("文件传输有误\n");
+			return -1;
+		}
+		else{
+			//printf("文件传输得到的内容是%s\n", fileContent);
+			close(pasvconnfd);		//传输结束
+		}
+	}
+	else{
+		return -2;
+	}
+	
+
+	//send(connfd, listcontent, strlen(listcontent), 0);		//传输文件需要用到portconnfd
 	fclose(fp);
-	return 0;
+	if(rmdir("list.txt") == 0){
+		printf("删除list.txt成功");
+	}
+	return 1;
 }
 #endif 

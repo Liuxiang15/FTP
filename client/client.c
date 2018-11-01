@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 
 	while(fgets(sentence, CMD_SIZE, stdin) != NULL)
 	{
-		normalizeInput(sentence);
+		normalizeInput(sentence);	//把所有输入的字符串后加上\r\n
 		int cmd_type = judgeCmdType(sentence);
 
 		switch(cmd_type){
@@ -78,6 +78,8 @@ int main(int argc, char **argv) {
 				if((pasvconnfd = createconnectfd(newip,pasvport)) != -1){//pasv模式下连接,如果连接出错的话再函数内部就会报错了
 					memset(sentence, '\0', CMD_SIZE);	//空串
 				}
+				puts("PASV模式完成");
+				break;
 			case RETR: 
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
 				if(testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE) == 1){
@@ -89,92 +91,94 @@ int main(int argc, char **argv) {
 					// 	printf("%s\n", sentence);
 					// }
 				}
-				puts("PORTMODE 下RETR结束");
-
+				//puts("RETR结束");
+				MODE = LOGGED;
 				break;
 			case STOR:
-				if(MODE == PORTMODE){
-					if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
-					strncpy(filename, sentence+5, strlen(sentence)-7);
-					puts("进入PORTMODE下的STOR指令");
-					testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
-					n = recv(sockfd, sentence, CMD_SIZE, 0);
-					normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-					printf("%s\n", sentence);
-					n = recv(sockfd, sentence, CMD_SIZE, 0);
-					normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-					printf("%s\n", sentence);
+				if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
+				strncpy(filename, sentence+5, strlen(sentence)-7);
+				puts("进入PORTMODE下的STOR指令");
+				testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+				printf("%s\n", sentence);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
+				printf("%s\n", sentence);
+				MODE = LOGGED;
+				break;
+			case LIST:
+			{
+				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
+				char temp[CONTENT_SIZE]="\0";
+				strcpy(temp, sentence);
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);
+				printf("%s\n", sentence);
+
+				if(testRETR(temp, portlistenfd, pasvconnfd, sockfd, MODE) == 1){
+					//puts("LIST结束");
 				}
+				MODE = LOGGED;
+				// n = recv(sockfd, sentence, CMD_SIZE, 0);
+				// normalizerecv(sentence);
+				// printf("%s\n", sentence);
+
+				break;
+			}
+
+			case MKD:		
+			//A MKD request asks the server to create a new directory.
+			//The MKD parameter is an encoded pathname specifying the directory.
+			//If the server accepts MKD (required code 257), 
+			//its response 
+			//includes the pathname of the directory, 
+			//in the same format used for responses to PWD.
+			//A typical server accepts MKD with code 250 if the directory was successfully created, 
+			//or rejects MKD with code 550 if the creation failed. 
+			case CWD:		//It asks the server to set the name prefix to this pathname
+			case PWD:		//print the name prefix
+			//257 "/home/joe"
+			case RMD:
+			//An RMD request asks the server to remove a directory. 
+			//The RMD parameter is an encoded pathname specifying the directory. 
+			case RNFR:
+			//A RNFR request asks the server to begin renaming a file. 
+			//The RNFR parameter is an encoded pathname specifying the file.
+			//A typical server accepts RNFR with code 350 if the file exists, 
+			//or rejects RNFR with code 450 or 550 otherwise. 
+			case RNTO:
+			//A RNTO request asks the server to finish renaming a file.
+			// The RNTO parameter is an encoded pathname specifying the new location of the file. 
+			//!!!RNTO must come immediately after RNFR; otherwise the server may reject RNTO with code 503.
+			//A typical server accepts RNTO with code 250 if the file was renamed successfully, 
+			//or rejects RNTO with code 550 or 553 otherwise. 
+			{
+				
+				//An RMD request asks the server to remove a directory. 
+				//The RMD parameter is an encoded pathname specifying the directory.
+				//A typical server accepts RMD with code 250 if the directory was successfully removed, 
+				//or rejects RMD with code 550 if the removal failed. 
+				n = send(sockfd, sentence, CMD_SIZE, 0);
+				n = recv(sockfd, sentence, CONTENT_SIZE, 0);
+				normalizerecv(sentence);
+				printf("%s\n", sentence);
+				break;
+			}
 
 
+			case QUIT:
+			case ABOR:
+			{
+				n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
+				n = recv(sockfd, sentence, CMD_SIZE, 0);
+				normalizerecv(sentence);
+				printf("%s\n", sentence);
+				close(sockfd);	//传输结束
+				return 0;
+			}
 			
 		}
-
-		// if(strstr(sentence, "QUIT") != NULL || strstr(sentence, "ABOR") != NULL)
-		// {
-		// 	n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
-		// 	n = recv(sockfd, sentence, 1024, 0);		//收到第二条指令
-		// 	printf("%s", sentence);
-		// 	close(sockfd);	//传输结束
-		// 	return 0;
-		// }
-		// else if(strstr(sentence, "RETR") != NULL)
-		// {
-		// 	testRETR(sentence, portlistenfd, pasvconnfd, sockfd, MODE);
-		// 	n = recv(sockfd, sentence, 1024, 0);
-		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// 	printf("%s\n", sentence);
-		// 	memset(sentence, '\0', strlen(sentence));	//空串
-		// 	n = recv(sockfd, sentence, 1024, 0);
-		// 	continue;
-		// }
-		// else if(strstr(sentence, "STOR") != NULL)
-		// {
-		// 	char temp[20] = "\0";
-		// 	strcpy(temp, sentence);
-			
-		// 	n = send(sockfd, sentence, 1024, 0);
-		// 	memset(sentence, '\0', strlen(sentence));	//空串
-		// 	n = recv(sockfd, sentence, 1024, 0);
-		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// 	printf("%s\n", sentence);
-		// 	memset(sentence, '\0', strlen(sentence));	//空串
-		// 	if(n < 0)	printf("接收150指令出错\n");
-		// 	//这里用到了MODE
-		// 	//!!!testSTOR(temp, sockfd, pasvconnfd, MODE);
-		// 	printf("STOR传输成功\n");
-		// 	n = recv(sockfd, sentence, 1024, 0);
-		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// 	printf("%s\n", sentence);
-		// 	continue;
-		// }
-		// else if(strstr(sentence, "LIST") != NULL)
-		// {
-		// 	n = send(sockfd, sentence, 65535, 0);
-		// 	/*********以下为和助教测试**************/
-		// 	memset(sentence, '\0', strlen(sentence));	//空串
-		// 	n = recv(sockfd, sentence, 65535, 0);
-		// 	printf("%s", sentence);				//!!!此行代码只为本机测试
-		// 	continue;					//!!!此行代码只为本机测试
-		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// 	printf("%s\n", sentence);
-		// 	//!!!testLIST(sentence, portlistenfd, pasvconnfd, sockfd, MODE);	//接收LIST传来的信息
-		// 	memset(sentence, '\0', strlen(sentence));	//空串
-		// 	n = recv(sockfd, sentence, 1024, 0);
-		// 	normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// 	printf("%s\n", sentence);	
-		// 	continue;
-		// }
-		// send(sockfd, sentence, strlen(sentence), 0);
-		// n = recv(sockfd, sentence, 1024, 0);
-		// normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-		// if(n < 0)
-		// {
-		// 	printf("recv error!%s(%d)\n", strerror(errno), errno);  
-	 	// 	continue; 
-		// }
-		// printf("%s\n", sentence);
-		// memset(sentence, '\0', strlen(sentence));		//空串
 	}	
 	
 }

@@ -10,30 +10,35 @@ char typeOK[] = "200 Type set to I.\r\n";
 char typeError[] = "503 This ftp only supports TYPE I\r\n";
 char portOK[] = "200 PORT command successful.\r\n";
 char transFinish[] = "226 Transfer complete.\r\n";
+char pasvReply[] = "227 Entering Passive Mode (127,0,0,1,102,109)\r\n";
+
+char listReply[] = "150 The directory listing is going to transmit.\r\n";
+char listTransFinish[] = "226 the entire directory was successfully transmitted.\r\n";
+char listNoTCP[] = "425 no TCP connection was established\r\n";
 
 
-char noPort[] = "503 You have not enter the PORTMODE";
-char noPasv[] = "503 You have not enter the PASVMODE";
+char noPort[] = "503 You have not enter the PORTMODE\r\n";
+char noPasv[] = "503 You have not enter the PASVMODE\r\n";
+
+char cwdOK[] = "250 Okay.\r\n";
+char cwdError[] = "550 : No such file or directory.\r\n";
+char mkdOK[] = "257 Make directory successfully.\r\n";
+char mkdError[] = "550 Failed to make directory.\r\n";
+char rmdOK[] = "250 Remove directory successfully.\r\n";
+char rmdError[] = "550 Failed to remove directory.\r\n";
+char RNFROK[] = "350 The file to be named exists.\r\n";
+char RNFRError[] = "450 The file to be named does not exist.\r\n";
+char noRNFR[] = "550 You have not input RNFR command.\r\n";
+char RNTOOK[] = "250 Rename the file successfully.\r\n";
+
+char ABORReply[] = "221 Thank you for using the FTP service. Goodbye.\r\n";
 
 
 
 int MODE = NOUSER;					//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
 char sentence[8192] = "\0";			//发送数据初始化,全局变量
-
-int handleCmdArgu(int argc, char **argv, char*root){
-	//返回端口号默认21 
-	int port = 21;
-	for(int i = 1; i < argc; i++){
-		if(!strcmp(argv[i], "-port")){
-			port = atoi(argv[++i]);
-		}
-		else if(!strcmp(argv[i], "-root")){
-			strcpy(root, argv[i]);
-		}
-	}
-	return port;
-}
-
+int hasRNFR = 0;
+char oldName[100] = "\0";
 
 int main(int argc, char **argv) {
 	char rootPath[100] = "/tmp";
@@ -71,7 +76,7 @@ int main(int argc, char **argv) {
 			if(n < 0)
 			{
 				printf("recv error!%s(%d)\n", strerror(errno), errno);  
-		 		continue;
+		 		break;
 			}
 			else
 			{
@@ -139,8 +144,103 @@ int main(int argc, char **argv) {
 								MODE = PASVMODE;
 								pasvlistenfd = dealpasv(sentence);	//返回port
 								printf("进入PASV\n");
+								n = send(connfd, pasvReply, strlen(pasvReply), 0); 	//发送指令还是用之前的connfd
+								memset(sentence, '\0', strlen(sentence));		//清空
 							}
 							break;
+						case MKD:
+						{
+							//默认MKD后面的参数是在当前目录下建立命名pathname的文件夹
+							char pathname[100] = "\0";
+							strncpy(pathname, sentence+4, strlen(sentence)-4);
+							printf("MKD的路径名是%s", pathname);
+							if(mkdir(pathname, S_IRWXU | S_IRWXG) == 0){
+								//S_IRWXU  00700权限，代表该文件所有者拥有读，写和执行操作的权限
+								//char mkdReply[] = "250 \"";
+								//strcat(mkdReply, pathname); 	
+								//strcat(mkdReply, "\""); 
+								n = send(connfd, mkdOK, strlen(mkdOK), 0);
+							}
+							else{
+								n = send(connfd, mkdError, strlen(mkdError), 0);
+							}
+							break;
+
+						}
+						case CWD:
+						{
+							if(handleCWD(sentence) == 1){
+								n = send(connfd, cwdOK, strlen(cwdOK), 0);
+							}
+							else{
+								n = send(connfd, cwdError, strlen(cwdError), 0);
+							}	
+							break;
+						}
+						case PWD:
+						{
+							//puts("进入PWD处理");
+							char namePrefix[100] = "\0";
+							if(realpath("./", namePrefix) == NULL){//将相对路径转变为绝对路径
+								printf("***Error***\n");
+								char pathError[] = "***Error***\n";
+								n = send(connfd, pathError, strlen(pathError), 0);
+								
+							} 
+							else{
+								printf("当前工作目录是：%s",namePrefix);
+								char pwdReply[] = "250 \"";
+								strcat(pwdReply, namePrefix); 
+								strcat(pwdReply,"\r\n");
+								n = send(connfd, pwdReply, strlen(namePrefix), 0);
+							}
+							puts("PWD执行结束");
+							//handlePWD(sentence, namePrefix);
+							break;
+				
+						}
+						case RMD:
+						{
+							if(handleRMD(sentence) == 1)	
+								n = send(connfd, rmdOK, strlen(rmdOK), 0);
+							else
+								n = send(connfd, rmdError, strlen(rmdError), 0);
+							break;
+						}
+
+						case RNFR:
+						{
+							if(handleRNFR(sentence) == 1){
+								hasRNFR = 1;
+								strncpy(oldName, sentence+4, strlen(sentence)-4);
+								n = send(connfd, RNFROK, strlen(RNFROK), 0);
+							}
+							else{
+								n = send(connfd, RNFRError, strlen(RNFRError), 0);
+							}
+							break;
+						}
+
+						case RNTO:
+						{
+							char newName[100] = "\0";
+							if(hasRNFR == 1){
+								if(rename(oldName, newName) == 0){
+									puts("重命名成功");
+									n = send(connfd, RNTOOK, strlen(RNTOOK), 0);
+								}
+								else{
+									n = send(connfd, noRNFR, strlen(RNTOOK), 0);
+								}
+							}
+							else 
+								n = send(connfd, noRNFR, strlen(RNTOOK), 0);
+							
+							hasRNFR = 0;
+							
+						}
+
+					
 						default:
 							memset(sentence, '\0', strlen(sentence));		//清空
 							strcpy(sentence, "In LOGGED MOde wrong grammer");
@@ -162,82 +262,59 @@ int main(int argc, char **argv) {
 							// 	printf("Error RETR replt 2 send(): %s(%d)\n", strerror(errno), errno);
 							// }
 							memset(sentence, '\0', strlen(sentence));		//清空
-							puts("PORTMODE下RETR结束");
+							MODE = LOGGED;	//传输数据进行模式切换
+							//puts("PORTMODE下RETR结束");
 							break;
 						case STOR:
 							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
 							puts("enter STOR\n");
 							stor(sentence, portconnfd, pasvlistenfd,connfd, MODE, filename);
 							memset(sentence, '\0', strlen(sentence));		//清空
+							MODE = LOGGED;	//传输数据进行模式切换
+							break;
+						case LIST:
+							n = send(connfd, listReply, strlen(listReply), 0); 	//发送指令还是用之前的connfd
+							if(handleLIST(connfd, pasvlistenfd, portconnfd, MODE) == -2){
+								n = send(connfd, listNoTCP, strlen(listNoTCP), 0); 	
+								memset(sentence, '\0', strlen(sentence));		//清空
+							}
+							else{
+								n = send(connfd, listTransFinish, strlen(listTransFinish), 0); 	
+								memset(sentence, '\0', strlen(sentence));		//清空
+							}
+							MODE = LOGGED;	//传输数据进行模式切换
 							break;
 						default:
 							n = send(connfd, noPort, strlen(noPort), 0); 	
 							memset(sentence, '\0', strlen(sentence));		//清空
-						
 					}
 
 				}
 				else if(MODE == PASVMODE){
 					switch(cmd_type){
 						case RETR:
+							memset(filename, '\0', strlen(filename));		//清空
 							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
 							retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename);
+							break;
+						case STOR:
+							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
+							puts("enter PASVMODE 下STOR\n");
+							stor(sentence, portconnfd, pasvlistenfd,connfd, MODE, filename);
+							memset(sentence, '\0', strlen(sentence));		//清空
+							break;
+
 					}
 				}
-				
-				/*
-				if(pasv(sentence) == 1)
-				{	
-				
-					pasvlistenfd = dealpasv(sentence);	//返回套接字
-					printf("执行完pasv函数的listenfd为%d\n", pasvlistenfd);
-					MODE = PASVMODE;			//pasv模式
-					printf("进入PASV\n");
-					n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}	
-				else if(stor(sentence, portconnfd, pasvlistenfd,connfd, MODE) == 1)		//根据pasvlistenfd新建connfd用于传输或者传入portconnfd传输
-				{
-					
-				}		
-				else if(quit(sentence) == 1)
-				{
-					n = send(connfd, sentence, strlen(sentence), 0);
-					memset(sentence, '\0', strlen(sentence));		//清空
-					close(portconnfd);					//quit和abor指令终止除了服务端最初监听的listenfd之外的其他连接
+				//ABOR和QUIT命令可以随时终止
+				if(cmd_type == QUIT || cmd_type == ABOR){
+					n = send(connfd, ABORReply, strlen(ABORReply), 0); 
 					close(connfd);
-					break;							//继续监听其他客户端的连接请求
 				}
-				else if(cwd(sentence) == 1)
-				{
-					n = send(connfd, sentence, strlen(sentence), 0);
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}
-				else if(mkd(sentence) == 1)
-				{
-					n = send(connfd, sentence, strlen(sentence), 0);
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}
-				else if(rmd(sentence) == 1)
-				{
-
-					n = send(connfd, sentence, strlen(sentence), 0);
-					memset(sentence, '\0', strlen(sentence));		//清空
-				}
-				else if(strstr(sentence, "LIST") != NULL)
-				{
-					list(connfd);
-				}
-				else
-				{
-					//printf("出错的指令是%s\n", sentence);
-					strcpy(sentence,"指令出错\r\n");
-					printf("此时的指令为%s\n", sentence);
-					n = send(connfd, sentence, strlen(sentence), 0);
-				}*/
-				//memset(sentence, '\0', strlen(sentence));		//清空
+				
 			}
 		}
+
 	}
 	close(listenfd);
 }

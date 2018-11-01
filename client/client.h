@@ -21,7 +21,6 @@
 #include <arpa/inet.h>
 
 #include "const.h"
-extern int MODE;		//作为客户端的状态变量
 
 extern int normalizeInput(char * sentence)		//把所有输入的字符串后加上\r\n
 {
@@ -201,9 +200,9 @@ extern  int dealpasv(char* sentence, char *newip)
 	int nump1 = atoi(strp1);
 	int nump2 = atoi(strp2);
 	int port = 256 * nump1 + nump2;		//计算求得port
-	//printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
-	//printf("dealpasv中deal的ip地址为：%s\n", newip);
-	//printf("dealpasv函数中的port=%d\n",port);	
+	printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
+	printf("dealpasv中deal的ip地址为：%s\n", newip);
+	printf("dealpasv函数中的port=%d\n",port);	
 	return port;
 }
 /*stor指令处理*/
@@ -249,65 +248,93 @@ extern int stor(char* sentence, int newconnfd)
 		fclose(fp);		//关闭文件
 	}
 }
-/*处理RETR指令*/
-extern int retr(char*sentence)
-{
-	if(strstr(sentence, "RETR") != NULL)
-	{
-		return 1;
-	}
-	return -1;
-}
+
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
 {
+	//printf("进入testRETR函数\n");
 	normalizerecv(sentence);
 	///!!!在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
 	char filename[20] = "\0";
-	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过1024位
+	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
 	
-	strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-	FILE *fp = fopen(filename, "w");
+	
+	//特殊处理LIST情况
+	int listflag = 0;
+	if(strncmp(sentence, "LIST", 4) == 0){
+		strcpy(filename, "list.txt");
+		listflag = 1;
+	}
+	else{
+		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
+	}
+	//printf("传入参数是%s", sentence);
+	//printf("文件名是%s", filename);
+
 	int n;
 	//现在只支持PASV 模式下的RETR
-	if(MODE ==PASVMODE){
+	if(MODE == PASVMODE){
+		//puts("进入testRETR函数的PASVMODE判断中");
 		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
+		printf("PASVMODE下的RETR的内容是：%s\n", fileContent);
 		if(readnum > 0)
 		{
 			//size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-			fwrite(fileContent, 1, readnum, fp);		//写入新建文件
+			//FILE *fp = fopen(filename, "w");
+			//fwrite(fileContent, 1, readnum, fp);		//写入新建文件
+			//createFile(filename, fileContent);
+			if(listflag == 1){
+				printf("%s", fileContent);
+			}
+			else{
+				if(createFile(filename, fileContent) == 1){
+					puts("createfile OK");
+				}
+				else{
+					puts("createfile Error");
+				}
+			}
 		}
 		else
 		{
-			fclose(fp);
+			//fclose(fp);
 			close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
 		}
 	}
 	else if(MODE == PORTMODE){
+		
 		int testfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
 		if (testfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
 		n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
+		
 		if(n < 0){
 			printf("PORT模式下RETR文件传输有误\n");
 			return -1;
 		}
 		else{
-			//printf("进入了testRETR的创建文件函数\n"); 
-			if(createFile(filename, fileContent) == 1){
-				//puts("createfile OK");
+			
+			if(listflag == 1){
+				printf("%s", fileContent);
 			}
 			else{
-				puts("createfile Error");
+				if(createFile(filename, fileContent) == 1){
+					puts("createfile OK");
+				}
+				else{
+					puts("createfile Error");
+				}
 			}
+			
 			close(testfd);			//传输结束,关闭
+			
 			//close(clientlistenfd);	//监听的话继续，只是之前的传输连接关掉
 		}
 	}
-	else{
+	
 
-	}
+	
 	//接下来等待接收server的完结指令
 	//puts("接收第一条指令");
 	memset(sentence, '\0', CMD_SIZE);		//空串
@@ -348,7 +375,6 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
 		else{
-			
 			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
 			if(readnum > 0)
 			{
@@ -374,75 +400,66 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 	else if(MODE == PASVMODE)	//PASVMODE
 	{
 		//先获取文件大小（待提取）
-		while(1)
+		int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
+		if(readnum > 0)
 		{
-			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
-			if(readnum > 0)
+			//printf("进入STOR的传输过程\n");
+			int n = send(pasvconnfd, fileContent, fileSize, 0);
+			if(n < 0)
 			{
-				//printf("进入STOR的传输过程\n");
-				int n = send(pasvconnfd, fileContent, fileSize, 0);
-				if(n < 0)
-				{
-					printf("STORsend失败\n");
-					return -1;
-				}
-			}
-			else
-			{
-				fclose(fp);
-				close(pasvconnfd);
-				printf("STOR传输文件完成\n");
-				return 1;
+				printf("STORsend失败\n");
+				return -1;
 			}
 		}
-		
+		else
+		{
+			fclose(fp);
+			close(pasvconnfd);
+			printf("STOR传输文件完成\n");
+			return 1;
+		}
 	}
-	
 }
 
 /**/
 /*测list函数*/
-extern int testLIST(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
-{
-	printf("进入testRETR函数\n");
-	FILE *fp;
-	if(MODE == 2)			//PASVMODE
-	{
-		char pasvfileContent[128] = "\0";		//默认传输文件不超过19KB 
-		fp = fopen("list.txt", "w");
-		if(fp == NULL)
-		{
-			printf("打开list.txt文件失败\n");
-			return 0;
-		}
-		while(1)
-		{
-			int readnum = recv(pasvconnfd, pasvfileContent, 128, 0);
-			if(readnum > 0)
-			{
-				fwrite(pasvfileContent, 1, readnum, fp);		//写入新建文件
-			}
-			else
-			{
-				fclose(fp);
-				close(pasvconnfd);	//关闭文件传输和监听
-				break;
-			}
-		}
+// extern int testLIST(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE)
+// {
+// 	printf("进入testRETR函数\n");
+// 	FILE *fp;
+// 	if(MODE == PASVMODE)			//PASVMODE
+// 	{
+// 		char pasvfileContent[128] = "\0";		//默认传输文件不超过19KB 
+// 		fp = fopen("list.txt", "w");
+// 		if(fp == NULL)
+// 		{
+// 			printf("打开list.txt文件失败\n");
+// 			return 0;
+// 		}
 		
-	}
-	printf("LIST已经全部导入list.txt文件里\n");
-	char line[1024] = "\0";
-	fp = fopen("list.txt", "r");
-	if(fp == NULL)
-	{
-		printf("打开list.txt文件失败\n");
-		return 0;
-	}
-	while(fgets(line, 1024, fp))
-	{
-		printf("%s\n", line);
-	}
-	return 0;
-}
+// 		int readnum = recv(pasvconnfd, pasvfileContent, 128, 0);
+// 		if(readnum > 0)
+// 		{
+// 			fwrite(pasvfileContent, 1, readnum, fp);		//写入新建文件
+// 		}
+// 		else{
+// 			fclose(fp);
+// 			close(pasvconnfd);	//关闭文件传输和监听
+// 			
+// 		}		
+// 	}
+// 	printf("LIST已经全部导入list.txt文件里\n");
+// 	char line[1024] = "\0";
+// 	fp = fopen("list.txt", "r");
+// 	if(fp == NULL)
+// 	{
+// 		printf("打开list.txt文件失败\n");
+// 		return 0;
+// 	}
+// 	while(fgets(line, 1024, fp))
+// 	{
+// 		printf("%s\n", line);
+// 	}
+// 	return 0;
+// }
 #endif
