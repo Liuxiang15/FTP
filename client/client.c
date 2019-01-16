@@ -102,17 +102,17 @@ int main(int argc, char **argv) {
 				strcpy(retrCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
-				printf("%s\n", sentence);
+				printf("retr1 %s\n", sentence);
 
 				if(testRETR(retrCopy, portlistenfd, pasvconnfd, sockfd, MODE, 0) == 1){
 					// //正常返回才需要第二次接收
 					// memset(sentence, '\0', CMD_SIZE);		//空串
-					// if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
-					// else{
-					// 	puts("接收第2条指令");
-					// 	normalizerecv(sentence);
-					// 	printf("%s\n", sentence);
-					// }		
+					if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
+					else{
+						puts("接收第2条指令");
+						normalizerecv(sentence);
+						printf("%s\n", sentence);
+					}		
 				}
 				
 				// memset(sentence, '\0', strlen(sentence));		//空串
@@ -127,7 +127,7 @@ int main(int argc, char **argv) {
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
 				printf("%s\n", sentence);
-				if(testRETR(temp, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
+				if(testRETR(listCopy, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
 					//puts("LIST结束");
 				}
 				MODE = LOGGED;
@@ -138,13 +138,11 @@ int main(int argc, char **argv) {
 				break;
 			}
 			case STOR:
+			//注意STOR只接收一次回复
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
 				strncpy(filename, sentence+5, strlen(sentence)-7);
 				//puts("进入PORTMODE下的STOR指令");
 				testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
-				n = recv(sockfd, sentence, CMD_SIZE, 0);
-				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
-				printf("%s\n", sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
 				printf("%s\n", sentence);
@@ -173,11 +171,13 @@ int main(int argc, char **argv) {
 			//A typical server accepts RNFR with code 350 if the file exists, 
 			//or rejects RNFR with code 450 or 550 otherwise. 
 			case RNTO:
+			case
 			//A RNTO request asks the server to finish renaming a file.
 			// The RNTO parameter is an encoded pathname specifying the new location of the file. 
 			//!!!RNTO must come immediately after RNFR; otherwise the server may reject RNTO with code 503.
 			//A typical server accepts RNTO with code 250 if the file was renamed successfully, 
-			//or rejects RNTO with code 550 or 553 otherwise. 
+			//or rejects RNTO with code 550 or 553 otherwise.
+			case NOCMD:
 			{
 				
 				//An RMD request asks the server to remove a directory. 

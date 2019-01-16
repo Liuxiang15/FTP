@@ -49,8 +49,6 @@ extern int normalizeInput(char * sentence)		//把所有输入的字符串后加�
 	return 0;
 }
 
-
-
 extern int normalizerecv(char * sentence)		//把所有读入的字符串后加上\r\n
 {
 	int len = strlen(sentence);
@@ -138,7 +136,7 @@ extern int createconnectfd(char * ip, int port)//ip为要连接的ip地址
 	}
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);	//默认6789
+	addr.sin_port = htons(port);	
 	if (inet_pton(AF_INET, ip, &addr.sin_addr) <= 0) {
 		printf("Error inet_pton(): %s(%d)\n", strerror(errno), errno);
 		return -1;
@@ -161,13 +159,12 @@ extern int createclientlistenfd(int port)
 	struct sockaddr_in newaddr;
 	memset(&newaddr, 0, sizeof(newaddr));
 	newaddr.sin_family = AF_INET;
-	newaddr.sin_port = htons(port);			//按照助教给的端口128*256+79=32847
+	newaddr.sin_port = htons(port);			
 	newaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	if (bind(clientlistenfd, (struct sockaddr*)&newaddr, sizeof(newaddr)) == -1) {		//bind
 		printf("Error bind(): %s(%d)\n", strerror(errno), errno);
 		return -1;
 	}
-
 	if (listen(clientlistenfd, 10) == -1) {							//listen
 		printf("Error listen(): %s(%d)\n", strerror(errno), errno);
 		return -1;
@@ -177,10 +174,9 @@ extern int createclientlistenfd(int port)
 extern int createFile(char*filename, char*content)
 {
 	//printf("the file name is %s", filename);
-	//FILE *fp = fopen(filename, "w");					/*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
-	FILE *fp = fopen(filename, "w");
-	int nFileLen = strlen(content);
-	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
+	FILE *fp = fopen(filename, "w");					    /*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
+	int file_len = strlen(content);
+	if(fwrite(content, sizeof(char), file_len, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
 	{
 		printf("写入文件失败\n");
 		return -1;
@@ -190,8 +186,8 @@ extern int createFile(char*filename, char*content)
 }
 /*PORT指令处理,返回端口*/
 extern int port(char* sentence, char*newip){
-	int j = 0;	//ip下标
-	int num = 0;	//标识，的数量
+	int j = 0;	             //ip下标
+	int num = 0;	        //标识，的数量
 	char strp1[4] = "\0";
 	char strp2[4] = "\0";
 	
@@ -321,43 +317,27 @@ extern int stor(char* sentence, int newconnfd)
 }
 
 /*测试retr函数*/
-extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, 
-char*filename, int listFlag)
+extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, int listFlag)
 {
-
-	
-	char temp[100] = "\0";
-	if(recv(sockfd, temp, CMD_SIZE, 0) <= 0)	printf("RETRError\n");
-	else{
-		puts("接收第一条指令");
-		normalizerecv(temp);
-		printf("%s\n", temp);
-		if(strstr(temp, "550") != NULL){
-			return -1;
-		}
-	}
-
-	memset(temp, '\0', strlen(temp));
-
-	normalizerecv(sentence);
-	///!!!在写入文件的时候还应该注意写入字数是否等于fwrite返回字数
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
-	if(listflag == 1){
+	if(listFlag == 1){
 		strcpy(filename, "list.txt");
 	}
-	//特殊处理LIST情况
-	// int listflag = 0;
-	// if(strncmp(sentence, "LIST", 4) == 0){
-	// 	strcpy(filename, "list.txt");
-	// 	listflag = 1;
-	// }
-	// else{
-	// 	strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-	// }
-	//printf("传入参数是%s", sentence);
-	//printf("文件名是%s", filename);
+	else{
+		normalizerecv(sentence);
+		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
+	}
 
+	if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0){
+		printf("RETRError\n");
+		return -1;
+	}	
+	else{
+		puts("接收第2条指令");
+		normalizerecv(sentence);
+		printf("%s\n", sentence);
+	}
 	int n;
 	//现在只支持PASV 模式下的RETR
 	if(MODE == PASVMODE){
@@ -366,14 +346,12 @@ char*filename, int listFlag)
 		printf("文件内容%s", fileContent);
 		if(readnum > 0)
 		{
-			//size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
-			//FILE *fp = fopen(filename, "w");
-			//fwrite(fileContent, 1, readnum, fp);		//写入新建文件
-			//createFile(filename, fileContent);
-			if(listflag == 1){
+			if(listFlag == 1){
 				printf("%s", fileContent);
 			}
 			else{
+				printf("RETR函数的文件名是：%s\n", filename);
+				printf("RETR函数的内容是：%s\n", fileContent);
 				if(createFile(filename, fileContent) == 1){
 					//puts("createfile OK");
 				}
@@ -401,7 +379,7 @@ char*filename, int listFlag)
 		}
 		else{
 			
-			if(listflag == 1){
+			if(listFlag == 1){
 				printf("%s", fileContent);
 			}
 			else{
@@ -464,8 +442,6 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 				close(portconnfd);
 				//printf("STOR传输文件完成\n");
 			}
-			
-	
 		}
 	}
 	else if(MODE == PASVMODE)	//PASVMODE
