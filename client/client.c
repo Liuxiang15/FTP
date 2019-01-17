@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
 	while(fgets(sentence, CMD_SIZE, stdin) != NULL)
 	{
 		normalizeInput(sentence);	//把所有输入的字符串后加上\r\n
+
 		int cmd_type = judgeCmdType(sentence);
 
 		switch(cmd_type){
@@ -102,21 +103,27 @@ int main(int argc, char **argv) {
 				strcpy(retrCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
-				printf("retr1 %s\n", sentence);
+				printf("RETR收到的第一次回复是：%s\n", sentence);
+
+//				n = recv(sockfd, sentence, CMD_SIZE, 0);
+//				normalizerecv(sentence);
+//				printf("RETR收到的第二次回复是：%s\n", sentence);
 
 				if(testRETR(retrCopy, portlistenfd, pasvconnfd, sockfd, MODE, 0) == 1){
 					// //正常返回才需要第二次接收
 					// memset(sentence, '\0', CMD_SIZE);		//空串
-					if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
-					else{
-						puts("接收第2条指令");
-						normalizerecv(sentence);
-						printf("%s\n", sentence);
-					}		
+//					if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
+//					else{
+//					    normalizerecv(sentence);
+//						puts("接收第2条指令");
+//						printf("%s\n", sentence);
+//					}
+                    puts("RETR结束");
+
 				}
 				
 				// memset(sentence, '\0', strlen(sentence));		//空串
-				puts("RETR结束");
+
 				MODE = LOGGED;
 				break;
 			case LIST:
@@ -131,9 +138,9 @@ int main(int argc, char **argv) {
 					//puts("LIST结束");
 				}
 				MODE = LOGGED;
-				// n = recv(sockfd, sentence, CMD_SIZE, 0);
-				// normalizerecv(sentence);
-				// printf("%s\n", sentence);
+				 n = recv(sockfd, sentence, CMD_SIZE, 0);
+				 normalizerecv(sentence);
+				 printf("%s\n", sentence);
 
 				break;
 			}
@@ -171,7 +178,6 @@ int main(int argc, char **argv) {
 			//A typical server accepts RNFR with code 350 if the file exists, 
 			//or rejects RNFR with code 450 or 550 otherwise. 
 			case RNTO:
-			case
 			//A RNTO request asks the server to finish renaming a file.
 			// The RNTO parameter is an encoded pathname specifying the new location of the file. 
 			//!!!RNTO must come immediately after RNFR; otherwise the server may reject RNTO with code 503.

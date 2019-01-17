@@ -319,6 +319,7 @@ extern int stor(char* sentence, int newconnfd)
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, int listFlag)
 {
+    puts("进入testRETR函数");
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
 	if(listFlag == 1){
@@ -328,20 +329,20 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 		normalizerecv(sentence);
 		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
 	}
-
-	if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0){
-		printf("RETRError\n");
-		return -1;
-	}	
-	else{
-		puts("接收第2条指令");
-		normalizerecv(sentence);
-		printf("%s\n", sentence);
-	}
-	int n;
+//    puts("testRETR中recv之前");
+//	if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0){
+//		printf("RETRError\n");
+//		return -1;
+//	}
+//	else{
+//		puts("接收第2条指令");
+//		normalizerecv(sentence);
+//		printf("收到的指令是：%s\n", sentence);
+//	}
+//	int n;
 	//现在只支持PASV 模式下的RETR
 	if(MODE == PASVMODE){
-		//puts("进入testRETR函数的PASVMODE判断中");
+		puts("进入testRETR函数的PASVMODE判断中");
 		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
 		printf("文件内容%s", fileContent);
 		if(readnum > 0)
@@ -353,7 +354,10 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 				printf("RETR函数的文件名是：%s\n", filename);
 				printf("RETR函数的内容是：%s\n", fileContent);
 				if(createFile(filename, fileContent) == 1){
-					//puts("createfile OK");
+					puts("createfile OK");
+					char transFinish[] = "226 Transfer complete.\n";
+					printf("%s", transFinish);
+					return 1;
 				}
 				else{
 					puts("createfile Error");
@@ -366,12 +370,11 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 		}
 	}
 	else if(MODE == PORTMODE){
-		
 		int testfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
 		if (testfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
-		n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
+		int n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
 		
 		if(n < 0){
 			printf("PORT模式下RETR文件传输有误\n");

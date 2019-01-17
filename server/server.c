@@ -50,8 +50,8 @@ int main(int argc, char **argv) {
 	int listenfd, connfd;		//服务端最初始的两个套接字
 	char newip[20] = "\0";		//用于传输文件的ip地址
 	int trans_port;			    //用于传输文件的port,可通过对字符串的截取计算得出
-	int portconnfd;			//port模式下server端用来连接的套接字
-	int pasvlistenfd;		//pasv模式下server端用来监听的套接字
+	int portconnfd;			    //port模式下server端用来连接的套接字
+	int pasvlistenfd;		    //pasv模式下server端用来监听的套接字
 	listenfd = createlistenfd(listenPort);//监听并绑定端口
 	int n;
 	//持续监听连接请求
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 			{
 				printf("服务端接受到的字符串为%s", sentence);	
 				int cmd_type = judgeCmdType(sentence);//判断命令类型
-
+                printf("cmd_type是%d",cmd_type);
 				//ABOR和QUIT命令可以随时终止
 				if(cmd_type == QUIT || cmd_type == ABOR){
 					n = send(connfd, ABORReply, strlen(ABORReply), 0); 
@@ -168,14 +168,17 @@ int main(int argc, char **argv) {
 							char pathname[100] = "\0";
 							strncpy(pathname, sentence+4, strlen(sentence)-4);
 							printf("MKD的路径名是%s", pathname);
-							if(mkdir(pathname, S_IRWXU | S_IRWXG) == 0){
+//							if(mkdir(pathname, S_IRWXU | S_IRWXG) == 0){
 								//S_IRWXU  00700权限，代表该文件所有者拥有读，写和执行操作的权限
 								//char mkdReply[] = "250 \"";
 								//strcat(mkdReply, pathname); 	
-								//strcat(mkdReply, "\""); 
+								//strcat(mkdReply, "\"");
+							if(mkdir(pathname, S_IRWXU | S_IRWXG | S_IRWXO) == 0){
+								puts("server make files OK");
 								n = send(connfd, mkdOK, strlen(mkdOK), 0);
 							}
 							else{
+							    puts("server make files failed");
 								n = send(connfd, mkdError, strlen(mkdError), 0);
 							}
 							break;
@@ -277,7 +280,7 @@ int main(int argc, char **argv) {
 							n = send(connfd, RETROK, strlen(RETROK), 0); 	//发送指令还是用之前的connfd
 							memset(filename, '\0', strlen(filename));		//清空
 							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
-							if(retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename) == -2){
+							if(handleRetr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename) == -2){
 								n = send(connfd, sentence, strlen(sentence), 0); 	
 								printf("retr出错服务端发送的指令是%s", sentence);
 							}
@@ -323,8 +326,6 @@ int main(int argc, char **argv) {
 							n = send(connfd, noPort, strlen(noPort), 0); 	
 							memset(sentence, '\0', strlen(sentence));		//清空
 					}
-					
-
 				}
 				else if(MODE == PASVMODE){
 					switch(cmd_type){
@@ -333,11 +334,19 @@ int main(int argc, char **argv) {
 							memset(filename, '\0', strlen(filename));		//清空
 							strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
 
-							if(retr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename) == -2){
-								n = send(connfd, sentence, strlen(sentence), 0); 	
+//							n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
+//                            if(n < 0){
+//                                puts("第二条指令发送失败");
+//                            }
+//                            else    puts("第二条指令发送成功");
+
+							if(handleRetr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename) == -2){
+							    puts("handleRetr的返回值为-2");
+								n = send(connfd, sentence, strlen(sentence), 0);
 							}
 							else{
-								n = send(connfd, RETROK, strlen(RETROK), 0); 	
+							    puts("handleRetr的返回值不为-2");
+//								n = send(connfd, transFinish, strlen(transFinish), 0);
 								memset(sentence, '\0', strlen(sentence));		//清空
 							}
 							puts("server.c PASV RETR 完成");

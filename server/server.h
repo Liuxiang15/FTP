@@ -306,9 +306,10 @@ extern int handleLIST(int connfd, int pasvlistenfd, int portconnfd, int MODE)
 
 
 /*retr指令处理*/
-extern int retr(char*relative_path, char* sentence, int portconnfd,
+extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
 	int pasvlistenfd, int MODE, int connfd,char filename[])	//sentence, portconnfd, pasvlistenfd, MODE
 {
+
 
 	printf("in server retr The file name is %s\n", filename);
 	char path[64] = "\0";	//存储当前绝对目录
@@ -339,9 +340,14 @@ extern int retr(char*relative_path, char* sentence, int portconnfd,
 		fread(sentence,sizeof(char),nFileLen+1,fp);
 		printf("服务端读取到的文件内容是%s\n", sentence);
 		strcpy(fileContent, sentence);
-		fclose(fp);		//关闭文件
+		fclose(fp);		                                //关闭文件
 	}
-
+//	char transFinish[] = "226 Transfer complete.\r\n";
+//    int n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
+//	if(n < 0){
+//	    puts("第二条指令发送失败");
+//	}
+//	else    puts("第二条指令发送成功");
 
 	//以上为获取RETR的文件内容，接下来是发送
 	if(MODE == PORTMODE){
@@ -367,8 +373,8 @@ extern int retr(char*relative_path, char* sentence, int portconnfd,
 		int n = send(pasvconnfd, fileContent, CONTENT_SIZE, 0);
 		if(n < 0){
 			printf("文件传输有误\n");
-			char transError[] = "transError\r\n";
-			n = send(connfd, transError, strlen(transError), 0);
+//			char transError[] = "transError\r\n";
+//			n = send(connfd, transError, strlen(transError), 0);
 			return -1;
 		}
 		else{
