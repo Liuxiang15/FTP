@@ -309,8 +309,6 @@ extern int handleLIST(int connfd, int pasvlistenfd, int portconnfd, int MODE)
 extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
 	int pasvlistenfd, int MODE, int connfd,char filename[])	//sentence, portconnfd, pasvlistenfd, MODE
 {
-
-
 	printf("in server retr The file name is %s\n", filename);
 	char path[64] = "\0";	//存储当前绝对目录
 	char fileContent[CONTENT_SIZE] = "\0";

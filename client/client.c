@@ -67,11 +67,11 @@ int main(int argc, char **argv) {
 			case PORT:
 				//puts("进入PORT");
 				MODE = PORTMODE;
-				portport = port(sentence, newip);
+				portport = handlePort(sentence, newip);
 				if(send(sockfd, sentence, CMD_SIZE, 0) < 0){//发送要上传的文件名
 					printf("PORT error!%s(%d)\n", strerror(errno), errno); 
 				}		
-				portlistenfd = createclientlistenfd(portport);	//在port模式下进行监听
+				portlistenfd = createClientListenfd(portport);	//在port模式下进行监听
 				if(recv(sockfd, sentence, CMD_SIZE, 0) < 0){
 					printf("PORT Listen error!%s(%d)\n", strerror(errno), errno); 
 				}
@@ -91,7 +91,6 @@ int main(int argc, char **argv) {
 				if((pasvconnfd = createconnectfd(newip,pasvport)) != -1){//pasv模式下连接,如果连接出错的话再函数内部就会报错了
 					memset(sentence, '\0', CMD_SIZE);	//空串
 				}
-				
 				break;
 			case RETR: 
 				//puts("进入RETR");
@@ -121,84 +120,59 @@ int main(int argc, char **argv) {
                     puts("RETR结束");
 
 				}
-				
-				// memset(sentence, '\0', strlen(sentence));		//空串
 
+//				n = recv(sockfd, sentence, CMD_SIZE, 0);
+//                normalizerecv(sentence);
+//                printf("%s\n", sentence);
 				MODE = LOGGED;
 				break;
 			case LIST:
 			{
-				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
-				char listCopy[CONTENT_SIZE]="\0";
+			    send(sockfd, sentence, strlen(sentence), 0);    //发送指令
+                char listCopy[CONTENT_SIZE]= "\0";
 				strcpy(listCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
 				printf("%s\n", sentence);
-				if(testRETR(listCopy, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
-					//puts("LIST结束");
-				}
-				MODE = LOGGED;
-				 n = recv(sockfd, sentence, CMD_SIZE, 0);
-				 normalizerecv(sentence);
-				 printf("%s\n", sentence);
 
+			    if(MODE == PASVMODE || MODE == PORTMODE){
+
+                    if(testRETR(listCopy, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
+                        //puts("LIST结束");
+                    }
+                    n = recv(sockfd, sentence, CMD_SIZE, 0);
+                    normalizerecv(sentence);
+                    printf("%s\n", sentence);
+			    }
+				MODE = LOGGED;
 				break;
 			}
 			case STOR:
-			//注意STOR只接收一次回复
+			{
+			     //注意STOR只接收一次reply
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0) printf("STOR失败");
 				strncpy(filename, sentence+5, strlen(sentence)-7);
-				//puts("进入PORTMODE下的STOR指令");
 				testSTOR(sentence, filename, portlistenfd, pasvconnfd, MODE);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);			//将收到的回复末尾的\r\n全部改为\0
 				printf("%s\n", sentence);
 				MODE = LOGGED;
 				break;
-			
-
-			case MKD:		
-			//A MKD request asks the server to create a new directory.
-			//The MKD parameter is an encoded pathname specifying the directory.
-			//If the server accepts MKD (required code 257), 
-			//its response 
-			//includes the pathname of the directory, 
-			//in the same format used for responses to PWD.
-			//A typical server accepts MKD with code 250 if the directory was successfully created, 
-			//or rejects MKD with code 550 if the creation failed. 
-			case CWD:		//It asks the server to set the name prefix to this pathname
-			case PWD:		//print the name prefix
-			//257 "/home/joe"
+			}
+			case MKD:
+			case CWD:
+			case PWD:
 			case RMD:
-			//An RMD request asks the server to remove a directory. 
-			//The RMD parameter is an encoded pathname specifying the directory. 
 			case RNFR:
-			//A RNFR request asks the server to begin renaming a file. 
-			//The RNFR parameter is an encoded pathname specifying the file.
-			//A typical server accepts RNFR with code 350 if the file exists, 
-			//or rejects RNFR with code 450 or 550 otherwise. 
 			case RNTO:
-			//A RNTO request asks the server to finish renaming a file.
-			// The RNTO parameter is an encoded pathname specifying the new location of the file. 
-			//!!!RNTO must come immediately after RNFR; otherwise the server may reject RNTO with code 503.
-			//A typical server accepts RNTO with code 250 if the file was renamed successfully, 
-			//or rejects RNTO with code 550 or 553 otherwise.
 			case NOCMD:
 			{
-				
-				//An RMD request asks the server to remove a directory. 
-				//The RMD parameter is an encoded pathname specifying the directory.
-				//A typical server accepts RMD with code 250 if the directory was successfully removed, 
-				//or rejects RMD with code 550 if the removal failed. 
 				n = send(sockfd, sentence, CMD_SIZE, 0);
 				n = recv(sockfd, sentence, CONTENT_SIZE, 0);
 				normalizerecv(sentence);
 				printf("%s\n", sentence);
 				break;
 			}
-
-			
-			
 		}
 	}	
 	

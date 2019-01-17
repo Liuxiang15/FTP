@@ -22,8 +22,8 @@
 
 #include "const.h"
 
+//返回监听端口号默认21,并设置server的ip地址，默认127.0.0.1
 extern int handleCmdArgu(int argc, char **argv, char*ip){
-	//返回监听端口号默认21,并设置server的ip地址，默认127.0.0.1
 	int port = 21;
 	for(int i = 1; i < argc; i++){
 		if(!strcmp(argv[i], "-port")){
@@ -36,16 +36,12 @@ extern int handleCmdArgu(int argc, char **argv, char*ip){
 	return port;
 }
 
-extern int normalizeInput(char * sentence)		//把所有输入的字符串后加上\r\n
+//把所有输入的字符串后加上\r\n
+extern int normalizeInput(char * sentence)
 {
 	int len = strlen(sentence);
-	// for(int i = 0; i < strlen(sentence); i++){
-	// 	if(sentence[i] == '\n' || sentence[i] == '\t'){
-	// 		sentence[i] = '\0';
-	// 	}
-	// }
 	sentence[len-1] = '\r';
-	strcat(sentence,"\n");//这里默认加上了'\0'字符
+	strcat(sentence,"\n");                  //这里默认加上了'\0'字符
 	return 0;
 }
 
@@ -54,11 +50,7 @@ extern int normalizerecv(char * sentence)		//把所有读入的字符串后加�
 	int len = strlen(sentence);
 	for(int i = 0; i < len; i++)
 	{
-		if(sentence[i] == '\r')
-		{
-			sentence[i] = '\0';
-		}
-		else if(sentence[i] == '\n')
+		if(sentence[i] == '\r' || sentence[i] == '\n')
 		{
 			sentence[i] = '\0';
 		}
@@ -127,7 +119,6 @@ extern int judgeCmdType(const char* cmdStr){
 extern int createconnectfd(char * ip, int port)//ip为要连接的ip地址
 {
 	//printf("进入createconnectfd函数\n");
-	
 	int sockfd;
 	struct sockaddr_in addr;	
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
@@ -146,10 +137,9 @@ extern int createconnectfd(char * ip, int port)//ip为要连接的ip地址
 		return -1;
 	}
 	return sockfd;
-
 }
 
-extern int createclientlistenfd(int port)
+extern int createClientListenfd(int port)
 {
 	int clientlistenfd;	//客户端监听
 	if ((clientlistenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
@@ -185,7 +175,7 @@ extern int createFile(char*filename, char*content)
 	return 1;
 }
 /*PORT指令处理,返回端口*/
-extern int port(char* sentence, char*newip){
+extern int handlePort(char* sentence, char*newip){
 	int j = 0;	             //ip下标
 	int num = 0;	        //标识，的数量
 	char strp1[4] = "\0";
@@ -357,7 +347,6 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 					puts("createfile OK");
 					char transFinish[] = "226 Transfer complete.\n";
 					printf("%s", transFinish);
-					return 1;
 				}
 				else{
 					puts("createfile Error");
@@ -365,16 +354,14 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			}
 		}
 		else
-		{
-			close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
-		}
+		    close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
 	}
 	else if(MODE == PORTMODE){
-		int testfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
-		if (testfd == -1) {
+		int trans_connfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
+		if (trans_connfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 		}
-		int n = recv(testfd, fileContent, CONTENT_SIZE, 0);				//接收数据
+		int n = recv(trans_connfd, fileContent, CONTENT_SIZE, 0);				//接收数据
 		
 		if(n < 0){
 			printf("PORT模式下RETR文件传输有误\n");
@@ -387,15 +374,16 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			}
 			else{
 				if(createFile(filename, fileContent) == 1){	
-					memset(sentence, '\0', strlen(sentence));		//空串
+					puts("createfile OK");
+					char transFinish[] = "226 Transfer complete.\n";
+					printf("%s", transFinish);
 				}
 				else{
 					puts("createfile Error");
 				}
 			}
-			
-			close(testfd);			//传输结束,关闭
-			close(clientlistenfd);	//监听的话继续，只是之前的传输连接关掉
+			close(trans_connfd);			//传输结束,关闭
+			close(clientlistenfd);	        //监听的话继续，只是之前的传输连接关掉
 		}
 	}
 	
