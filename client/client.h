@@ -309,7 +309,7 @@ extern int stor(char* sentence, int newconnfd)
 /*测试retr函数*/
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, int listFlag)
 {
-    puts("进入testRETR函数");
+//    puts("进入testRETR函数");
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
 	if(listFlag == 1){
@@ -332,19 +332,19 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 //	int n;
 	//现在只支持PASV 模式下的RETR
 	if(MODE == PASVMODE){
-		puts("进入testRETR函数的PASVMODE判断中");
+//		puts("进入testRETR函数的PASVMODE判断中");
 		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
-		printf("文件内容%s", fileContent);
+//		printf("文件内容%s", fileContent);
 		if(readnum > 0)
 		{
 			if(listFlag == 1){
 				printf("%s", fileContent);
 			}
 			else{
-				printf("RETR函数的文件名是：%s\n", filename);
-				printf("RETR函数的内容是：%s\n", fileContent);
+//				printf("RETR函数的文件名是：%s\n", filename);
+//				printf("RETR函数的内容是：%s\n", fileContent);
 				if(createFile(filename, fileContent) == 1){
-					puts("createfile OK");
+//					puts("createfile OK");
 					char transFinish[] = "226 Transfer complete.\n";
 					printf("%s", transFinish);
 				}
@@ -374,7 +374,7 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			}
 			else{
 				if(createFile(filename, fileContent) == 1){	
-					puts("createfile OK");
+//					puts("createfile OK");
 					char transFinish[] = "226 Transfer complete.\n";
 					printf("%s", transFinish);
 				}
@@ -394,24 +394,19 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvconnfd, int MODE)
 {
 	//printf("进入testSTOR函数\n");
-	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB 
-
+	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
 	//printf("文件名是%s\n", filename);
 	FILE *fp = fopen(filename, "r");
 	if(fp == NULL){
 		printf("文件打开出错\n");
 		return -1;
 	}
-	
 
-	int fileSize;
-	fseek(fp,0,SEEK_END); //定位到文件末 
-	fileSize = ftell(fp); //文件长度
+	fseek(fp,0,SEEK_END);       //定位到文件末
+	int fileSize = ftell(fp);   //文件长度
 	fseek(fp,0,SEEK_SET);		//fp指向文件头
-	
-	//printf("stor.c文件大小是%d", fileSize);
+
 	if(MODE == PORTMODE){
-		//puts("进入if语句");
 		int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
 		if (portconnfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);

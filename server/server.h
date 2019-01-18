@@ -325,13 +325,16 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
 		fseek(fp,0,SEEK_END); //定位到文件末 
 		nFileLen = ftell(fp); //文件长度
 		/*send the first reply*/
-		// strcpy(sentence, "50 Opening BINARY mode data connection for ");	
-		// strcat(sentence, filename);
-		// strcat(sentence, " (");
-		// char strnum[20] = "\0"; 
-		// snprintf(strnum, 19, "%d", nFileLen);
-		// strcat(sentence, strnum);
-		// strcat(sentence, " bytes).\r\n");
+		 memset(sentence, '\0', strlen(sentence));		//清空
+		 strcpy(sentence, "50 Opening BINARY mode data connection for ");
+		 strcat(sentence, filename);
+		 strcat(sentence, " (");
+		 char strnum[20] = "\0";
+		 snprintf(strnum, 19, "%d", nFileLen);
+		 strcat(sentence, strnum);
+		 strcat(sentence, " bytes).\r\n");
+		 send(connfd, sentence, strlen(sentence), 0);
+		 /*发送第一条指令结束*/
 
 		memset(sentence, '\0', strlen(sentence));		//清空
 		fseek(fp,0,SEEK_SET);		//fp指向文件头
@@ -340,12 +343,12 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
 		strcpy(fileContent, sentence);
 		fclose(fp);		                                //关闭文件
 	}
-//	char transFinish[] = "226 Transfer complete.\r\n";
-//    int n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
-//	if(n < 0){
-//	    puts("第二条指令发送失败");
-//	}
-//	else    puts("第二条指令发送成功");
+	//	char transFinish[] = "226 Transfer complete.\r\n";
+	//    int n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
+	//	if(n < 0){
+	//	    puts("第二条指令发送失败");
+	//	}
+	//	else    puts("第二条指令发送成功");
 
 	//以上为获取RETR的文件内容，接下来是发送
 	if(MODE == PORTMODE){
@@ -465,7 +468,7 @@ extern void getIpPort(char *ip, int port, struct sockaddr_in pasv_addr)
             temp[i] = ',';
     strcat(ip, temp);
 
-    char num[3];
+    char num[3] = "\0";
     sprintf(num, ",%d,", port / 256);
     strcat(ip, num);
     sprintf(num, "%d", port % 256);

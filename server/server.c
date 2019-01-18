@@ -16,7 +16,7 @@ char listReply[] = "150 The directory listing is going to transmit.\r\n";
 char listTransFinish[] = "226 the entire directory was successfully transmitted.\r\n";
 char listNoTCP[] = "425 no TCP connection was established\r\n";
 
-
+char loggedWrongCmd[] = "503 You have not enter the PORTMODE or PASVMODE\r\n";
 char noPort[] = "503 You have not enter the PORTMODE\r\n";
 char noPasv[] = "503 You have not enter the PASVMODE\r\n";
 
@@ -37,7 +37,7 @@ char wrongCmd[] = "503 Wrong commamd.\r\n";
 char RETROK[] = "50 Opening BINARY mode data connection\r\n";
 char STOROK[] = "226 Server has successfully store the file.\r\n";
 
-int MODE = NOUSER;					//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
+int MODE = NOUSER;							//记录server和client状态的全局变量，这里有bug，因为每个用户操作的状态不一样，所以应该单独为每个用户建立一个用户表
 char sentence[CONTENT_SIZE] = "\0";			//发送数据初始化,全局变量
 int hasRNFR = 0;
 char oldName[100] = "\0";
@@ -134,37 +134,35 @@ int main(int argc, char **argv) {
                                 memset(sentence, '\0', strlen(sentence));		//清空
                                 break;
                             case TYPE:
-                                {
-                                    if(strncmp(sentence, "TYPE I", 6) == 0){
-                                        n = send(connfd, typeOK, strlen(typeOK), 0);
-                                    }
-                                    else{
-                                        n = send(connfd, typeError, strlen(typeError), 0);
-                                    }
-                                    memset(sentence, '\0', strlen(sentence));		//清空
+                            {
+                                if(strncmp(sentence, "TYPE I", 6) == 0){
+                                    n = send(connfd, typeOK, strlen(typeOK), 0);
                                 }
+                                else{
+                                    n = send(connfd, typeError, strlen(typeError), 0);
+                                }
+                                memset(sentence, '\0', strlen(sentence));		//清空
                                 break;
+                            }
                             case PORT:
-                                {
-                                    //新建socket用于文件传输，连接client
-                                    MODE = PORTMODE;
-                                    trans_port = dealPort(sentence, newip);
-                                    //printf("客户端传过来的ip是%s", newip);
-                                    portconnfd = createconnectfd(trans_port, newip);//由助教实例计算得出：port = 128*256+79=32847
-                                    n = send(connfd, portOK, strlen(portOK), 0); 	//发送指令还是用之前的connfd
-                                    memset(sentence, '\0', strlen(sentence));		//清空
-                                }
+                            {
+                                MODE = PORTMODE;
+                                trans_port = dealPort(sentence, newip);
+                                portconnfd = createconnectfd(trans_port, newip);
+                                n = send(connfd, portOK, strlen(portOK), 0);
+                                memset(sentence, '\0', strlen(sentence));
                                 break;
+                            }
                             case PASV:
-                                {
-                                    MODE = PASVMODE;
-                                    pasvlistenfd = dealPasv(sentence);	//返回port
-                                    printf("进入PASV\n");
-                                    n = send(connfd, sentence, strlen(sentence), 0); 	//发送指令还是用之前的connfd
-                                    memset(sentence, '\0', strlen(sentence));		//清空
-
-                                }
+                            {
+                                MODE = PASVMODE;
+                                pasvlistenfd = dealPasv(sentence);	                //返回pasv监听socket
+                                printf("进入PASV\n");
+                                n = send(connfd, sentence, strlen(sentence), 0);
+                                memset(sentence, '\0', strlen(sentence));
                                 break;
+                            }
+
                             case MKD:
                             {
                                 //默认MKD后面的参数是在当前目录下建立命名pathname的文件夹
@@ -270,33 +268,22 @@ int main(int argc, char **argv) {
 
                             default:
                                 memset(sentence, '\0', strlen(sentence));		//清空
-                                strcpy(sentence, "In LOGGED MOde wrong grammer");
-                                n = send(connfd, portOK, strlen(portOK), 0); 	//发送指令还是用之前的connfd
-                                memset(sentence, '\0', strlen(sentence));		//清空
+                                n = send(connfd, loggedWrongCmd, strlen(loggedWrongCmd), 0); 	//发送指令还是用之前的connfd
                         }
                     }
                     else if(MODE == PORTMODE){
                         switch(cmd_type){
                             case RETR:
-                                n = send(connfd, RETROK, strlen(RETROK), 0); 	//发送指令还是用之前的connfd
+                                //n = send(connfd, RETROK, strlen(RETROK), 0); 	//发送指令还是用之前的connfd
                                 memset(filename, '\0', strlen(filename));		//清空
                                 strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
                                 if(handleRetr(rootPath,sentence, portconnfd, pasvlistenfd, MODE, connfd, filename) == -2){
     //								n = send(connfd, sentence, strlen(sentence), 0);
                                     printf("retr出错服务端发送的指令是%s", sentence);
                                 }
-                                // else{
-                                // 	puts("进入第二次指令的发送");
-//                                 	n = send(connfd, transFinish, strlen(transFinish), 0);
-//                                 	if(n > 0){
-//                                 		puts("第二次指令的发送成功");
-//                                 	}
-                                // 	memset(sentence, '\0', strlen(sentence));		//清空
-
-                                // }
                                 puts("retr完全结束");
-                                memset(sentence, '\0', strlen(sentence));		//清空
-                                MODE = LOGGED;	//传输数据进行模式切换
+                                memset(sentence, '\0', strlen(sentence));
+                                MODE = LOGGED;	                        //传输数据进行模式切换
                                 close(portconnfd);
                                 //puts("PORTMODE下RETR结束");
                                 break;
@@ -331,7 +318,7 @@ int main(int argc, char **argv) {
                     else if(MODE == PASVMODE){
                         switch(cmd_type){
                             case RETR:
-                                n = send(connfd, RETROK, strlen(RETROK), 0); 	//发送指令还是用之前的connfd
+//                                n = send(connfd, RETROK, strlen(RETROK), 0); 	//发送指令还是用之前的connfd
                                 memset(filename, '\0', strlen(filename));		//清空
                                 strncpy(filename, sentence+5, strlen(sentence)-5);//截取文件名
 

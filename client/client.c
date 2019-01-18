@@ -42,7 +42,7 @@ int main(int argc, char **argv) {
 			case QUIT:
 			case ABOR:
 			{
-				puts("进入QUIT");
+//				puts("进入QUIT");
 				n = send(sockfd, sentence, CMD_SIZE, 0);		//发送要上传的文件名
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
@@ -102,23 +102,10 @@ int main(int argc, char **argv) {
 				strcpy(retrCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
-				printf("RETR收到的第一次回复是：%s\n", sentence);
-
-//				n = recv(sockfd, sentence, CMD_SIZE, 0);
-//				normalizerecv(sentence);
-//				printf("RETR收到的第二次回复是：%s\n", sentence);
+				printf("%s\n", sentence);
 
 				if(testRETR(retrCopy, portlistenfd, pasvconnfd, sockfd, MODE, 0) == 1){
-					// //正常返回才需要第二次接收
-					// memset(sentence, '\0', CMD_SIZE);		//空串
-//					if(recv(sockfd, sentence, CMD_SIZE, 0) < 0)	printf("RETR文件传输完成有误\n");
-//					else{
-//					    normalizerecv(sentence);
-//						puts("接收第2条指令");
-//						printf("%s\n", sentence);
-//					}
-                    puts("RETR结束");
-
+//                    puts("RETR结束");
 				}
 
 //				n = recv(sockfd, sentence, CMD_SIZE, 0);
@@ -136,7 +123,6 @@ int main(int argc, char **argv) {
 				printf("%s\n", sentence);
 
 			    if(MODE == PASVMODE || MODE == PORTMODE){
-
                     if(testRETR(listCopy, portlistenfd, pasvconnfd, sockfd, MODE, 1) == 1){
                         //puts("LIST结束");
                     }
