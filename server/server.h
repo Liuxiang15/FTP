@@ -209,8 +209,8 @@ extern int createFile(char*content, char* filename)
 
 extern int dealPort(char* sentence, char*newip){
 	puts("进入port函数");
-	int j = 0;	//ip下标
-	int num = 0;	//标识，的数量
+	int j = 0;				//ip下标
+	int num = 0;			//标识，的数量
 	char strp1[4] = "\0";
 	char strp2[4] = "\0";
 	//获取ip地址:h1,h2,h3,h4,p1,p2
@@ -223,7 +223,7 @@ extern int dealPort(char* sentence, char*newip){
 		{
 			num++;
 			if(num == 4)	//ip地址结束
-				break;	//跳出循环
+				break;		//跳出循环
 			newip[j++] = '.';
 		}
 	}
@@ -336,59 +336,82 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
 		 send(connfd, sentence, strlen(sentence), 0);
 		 /*发送第一条指令结束*/
 
-		memset(sentence, '\0', strlen(sentence));		//清空
-		fseek(fp,0,SEEK_SET);		//fp指向文件头
-		fread(sentence,sizeof(char),nFileLen+1,fp);
-		printf("服务端读取到的文件内容是%s\n", sentence);
-		strcpy(fileContent, sentence);
-		fclose(fp);		                                //关闭文件
-	}
-	//	char transFinish[] = "226 Transfer complete.\r\n";
-	//    int n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
-	//	if(n < 0){
-	//	    puts("第二条指令发送失败");
-	//	}
-	//	else    puts("第二条指令发送成功");
+		 memset(sentence, '\0', strlen(sentence));		//清空
+		 fseek(fp,0,SEEK_SET);
 
-	//以上为获取RETR的文件内容，接下来是发送
-	if(MODE == PORTMODE){
-		int n = send(portconnfd, fileContent, strlen(fileContent), 0);		//传输文件需要用到portconnfd
-		if(n < 0)
-		{
-			printf("服务端send文件出错\n");	
-			printf("Error send(): %s(%d)\n", strerror(errno), errno);
-			return -1;
-		}
-		close(portconnfd);					//关掉port传输套接字
-		memset(sentence, '\0', strlen(sentence));		//清空
-		puts("在PORT模式下RETR完成");
-		// char transFinish[] = "226 Transfer complete.\r\n";
-		// n = send(connfd, transFinish, strlen(transFinish), 0); 
-		// if(n < 0)	puts("发送transFInish");
-		// else puts("没有发送transFinish2");
-		// n = send(connfd, "226 Transfer complete.\r\n", CONTENT_SIZE, 0);
-		return 1;
+		 if(nFileLen <= 2048){
+            fread(sentence,sizeof(char),nFileLen+1,fp);
+            printf("服务端读取到的文件内容是%s\n", sentence);
+            strcpy(fileContent, sentence);
+            fclose(fp);
+
+            // 以上为获取RETR的文件内容小于1024字节，接下来是发送
+            if(MODE == PORTMODE){
+                int n = send(portconnfd, fileContent, strlen(fileContent), 0);		//传输文件需要用到portconnfd
+                if(n < 0)
+                {
+                    printf("服务端send文件出错\n");
+                    printf("Error send(): %s(%d)\n", strerror(errno), errno);
+                    return -1;
+                }
+                close(portconnfd);					//关掉port传输套接字
+                memset(sentence, '\0', strlen(sentence));		//清空
+                puts("在PORT模式下RETR完成");
+                return 1;
+            }
+            else if(MODE == PASVMODE){
+                int pasvconnfd = accept(pasvlistenfd, NULL, NULL);	//pasvconnfd用于传输
+                int n = send(pasvconnfd, fileContent, CONTENT_SIZE, 0);
+                if(n < 0){
+                    printf("文件传输有误\n");
+                    return -1;
+                }
+                else{
+                    puts("PASV模式下传输文件成功");
+                    close(pasvconnfd);		//传输结束
+                }
+                return 1;
+            }
+		 }
+        else{
+            //如果大文件的话就要分批发送了
+            memset(sentence, '\0', strlen(sentence));		//清空
+            if(MODE == PASVMODE){
+                memset(sentence, '\0', strlen(sentence));		//清空
+                int file_block_length = 0;
+                int pasvconnfd = accept(pasvlistenfd, NULL, NULL);	//pasvconnfd用于传输
+                while((file_block_length = fread(sentence, sizeof(char), CONTENT_SIZE, fp)) > 0){
+                    if(send(pasvconnfd, sentence, file_block_length, 0) < 0){
+                        printf("send file failed");
+                        break;
+                    }
+                    memset(sentence, '\0', CONTENT_SIZE);		//清空
+                }
+
+                fclose(fp);
+                printf("Big file transfer finished!");
+                close(pasvconnfd);
+                return 1;
+            }
+            if(MODE == PORTMODE){
+                int file_block_length = 0;
+                while((file_block_length = fread(sentence, sizeof(char), CONTENT_SIZE, fp)) >0){
+                    if(send(portconnfd, sentence, file_block_length, 0) < 0){
+                        printf("send file failed");
+                        break;
+                    }
+                    memset(sentence, '\0', CONTENT_SIZE);		//清空
+                }
+            }
+
+
+        }
+
 	}
-	else if(MODE == PASVMODE){
-		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);	//testfd用于传输
-		int n = send(pasvconnfd, fileContent, CONTENT_SIZE, 0);
-		if(n < 0){
-			printf("文件传输有误\n");
-//			char transError[] = "transError\r\n";
-//			n = send(connfd, transError, strlen(transError), 0);
-			return -1;
-		}
-		else{
-			puts("PASV模式下传输文件成功");
-			close(pasvconnfd);		//传输结束
-			memset(sentence, '\0', strlen(sentence));		//清空
-			// char transFinish[] = "226 Transfer complete.\r\n";
-			// n = send(connfd, transFinish, strlen(transFinish), 0); 
-			// if(n < 0)	puts("发送transFInish");
-			// else puts("没有发送transFinish2");	
-		}
-		return 1;
-	}
+	
+
+
+
 }
 
 
