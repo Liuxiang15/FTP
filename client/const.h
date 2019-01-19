@@ -32,7 +32,7 @@
 #define QUITMODE -1
 
 #define CMD_SIZE 128
-#define CONTENT_SIZE 1024
+#define CONTENT_SIZE 2048
 
 
 #endif

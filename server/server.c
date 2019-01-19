@@ -332,11 +332,6 @@ int main(int argc, char **argv) {
                                     memset(sentence, '\0', strlen(sentence));		//清空
                                 }
 
-//                                n = send(connfd, transFinish, strlen(transFinish), 0); 	//发送指令还是用之前的connfd
-//                                if(n < 0){
-//                                    puts("第二条指令发送失败");
-//                                }
-//                                else    puts("第二条指令发送成功");
                                 puts("server.c PASV RETR 完成");
                                 MODE = LOGGED;	//传输数据进行模式切换
                                 close(pasvlistenfd);

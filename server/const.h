@@ -4,7 +4,6 @@
 #ifndef CONST_H
 #define CONST_H
 
-
 #define USER 0
 #define PASS 1
 #define RETR 2
@@ -32,7 +31,7 @@
 #define QUITMODE -1
 
 #define CMD_SIZE 128
-#define CONTENT_SIZE 8192	//对应8KB文件大小
+#define CONTENT_SIZE 2048	//对应2KB文件大小
 
 
 #endif

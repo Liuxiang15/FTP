@@ -97,20 +97,21 @@ int main(int argc, char **argv) {
 				if(send(sockfd, sentence, strlen(sentence), 0) < 0)	printf("RETR send失败\n");
 				// char filename[20] = "\0";
 				// strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
-
 				char retrCopy[CMD_SIZE]="\0";
 				strcpy(retrCopy, sentence);
 				n = recv(sockfd, sentence, CMD_SIZE, 0);
 				normalizerecv(sentence);
 				printf("%s\n", sentence);
+				
+				//pthread_t pid;
+				//int returnValue = pthread_create(&pid,NULL,(void *) thread,sentence); // 成功返回0，错误返回错误编号 
 
+                //printf("进入getFileLength函数的参数是%s", sentence);
+                //int fileLen = getFileLength(sentence);              //获取文件的总字节数
+                //printf("传输文件的字节数是%d", fileLen);
 				if(testRETR(retrCopy, portlistenfd, pasvconnfd, sockfd, MODE, 0) == 1){
 //                    puts("RETR结束");
 				}
-
-//				n = recv(sockfd, sentence, CMD_SIZE, 0);
-//                normalizerecv(sentence);
-//                printf("%s\n", sentence);
 				MODE = LOGGED;
 				break;
 			case LIST:

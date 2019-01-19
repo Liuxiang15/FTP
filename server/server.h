@@ -194,17 +194,38 @@ extern int createconnectfd(int port, char ip[])
 }
 
 /*创建文件并写入内容*/
-extern int createFile(char*content, char* filename)
+extern int createFile(char*filename, char*content)
 {
-	puts("进入createFile函数");
-	FILE *fp = fopen(filename, "w");
-	int nFileLen = strlen(content);
-	if(fwrite(content, sizeof(char), nFileLen, fp) < 0)
+	//printf("the file name is %s", filename);
+	FILE *fp = fopen(filename, "w");					    /*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
+	if(fp == NULL){
+	    printf("在createFile中文件打开出错");
+	    return -1;
+	}
+	int file_len = strlen(content);
+	if(fwrite(content, sizeof(char), file_len, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
 	{
 		printf("写入文件失败\n");
+		return -1;
 	}
-	fclose(fp);	//关闭文件才会写入
+	fclose(fp);	                                            //关闭文件才会写入
 	return 1;
+}
+
+extern int appendFile(char*filename, char*content){
+    //a+ 以附加方式打开可读写的文件。若文件不存在，则会建立该文件，//如果文件存在，写入的数据会被加到文件尾后，即文件原先的内容会被保留。 （原来的EOF符不保留）
+    FILE* fp = fopen(filename, "a+");
+    if(fp == NULL){
+	    printf("在appendFile中文件打开出错");
+	    return -1;
+	}
+    int file_len = strlen(content);
+    if(fwrite(content, sizeof(char), file_len, fp) < file_len){
+        printf("appendFile失败");
+        return -1;
+     }
+    fclose(fp);
+    return 1;
 }
 
 extern int dealPort(char* sentence, char*newip){
@@ -389,7 +410,7 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
                 }
 
                 fclose(fp);
-                printf("Big file transfer finished!");
+                printf("PASV RETR Big file transfer finished!");
                 close(pasvconnfd);
                 return 1;
             }
@@ -402,16 +423,13 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
                     }
                     memset(sentence, '\0', CONTENT_SIZE);		//清空
                 }
+				fclose(fp);
+                printf("PORT RETR Big file transfer finished!");
+                close(portconnfd);
+                return 1;
             }
-
-
         }
-
 	}
-	
-
-
-
 }
 
 
@@ -421,25 +439,32 @@ extern int stor(char*sentence, int portconnfd, int pasvlistenfd, int connfd, int
 	char fileContent[CONTENT_SIZE] = "\0";				//用来存储接收的文件内容
 	int n;
 	if(MODE == PORTMODE){
-		n = recv(portconnfd, fileContent, CONTENT_SIZE, 0);
-		printf("server接收到的内容是：%s", fileContent);
-		if(n < 0){
-			printf("PORT模式下STOR出错\n");
-			return -1;
-		}
-		else{
-			createFile(fileContent,filename);
-			close(portconnfd);
-			
-			// memset(sentence, '\0', strlen(sentence));		//清空
-			// strcpy(sentence, "226 Transfer complete.\r\n");
-			// n = send(connfd, sentence, strlen(sentence), 0);	//发送第2条指令
-
-			// memset(sentence, '\0', strlen(sentence));		//清空
-			// strcpy(sentence, "226 Server has successfully store the file.");
-			// n = send(connfd, sentence, strlen(sentence), 0);	//发送第1条指令
-			return 1;
-		}
+	    int firstContentFlag = 1;           //标识现在是第一次接收大文件内容
+	    while(n = recv(portconnfd, fileContent, CONTENT_SIZE, 0)){
+            if(n<0){
+                puts("Recieve Data From Server Failed!");
+                close(portconnfd);              //传输完成，关闭文件传输
+                break;
+            }
+            else{
+                if(firstContentFlag){
+                    printf("STOR new file name is %s", filename);
+                    printf("STOR new file content is %s", fileContent);
+                    if(createFile(filename, fileContent) == 1){
+                        memset(fileContent, '\0', strlen(fileContent));		//清空
+                        firstContentFlag = 0;           //归零以便下次添加文件
+                    }
+                    else{
+                        puts("createfile Error");
+                    }
+                }
+                else{
+                    //本部分代码应该将接收的内容append到源文件中去
+                    appendFile(filename, fileContent);          //这里先不做异常处理
+                    memset(fileContent, '\0', strlen(fileContent));		//清空
+                }
+            }
+	    }
 	}
 	else if(MODE == PASVMODE){
 		int pasvconnfd = accept(pasvlistenfd, NULL, NULL);		//pasv用于传输
@@ -447,31 +472,38 @@ extern int stor(char*sentence, int portconnfd, int pasvlistenfd, int connfd, int
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			return -1;
 		}
-		printf("PASV模式下stor函数中accept成功\n");
-		printf("1server接收到的内容是：%s", fileContent);
-		n = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
-		printf("2server接收到的内容是：%s", fileContent);
-		if(n < 0){
-			printf("文件传输有误\n");
-			return -1;
-		}
-		else{
-			//printf("文件传输得到的内容是%s\n", fileContent);
-			createFile(fileContent,filename);
-			close(pasvconnfd);		//传输结束
-		}
-
-		// memset(sentence, '\0', strlen(sentence));		//清空
-		// strcpy(sentence, "Server has successfully store the file.\r\n");
-		// n = send(connfd, sentence, strlen(sentence), 0);	//发送第1条指令
-		// memset(sentence, '\0', strlen(sentence));		//清空
-		// strcpy(sentence, "226 Transfer complete.\r\n");
-		// n = send(connfd, sentence, strlen(sentence), 0);	//发送第2条指令
-		return 1;
+		int firstContentFlag = 1;           //标识现在是第一次接收大文件内容
+	    while(n = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0)){
+            if(n<0){
+                puts("Recieve Data From Server Failed!");
+                close(pasvconnfd);              //传输完成，关闭文件传输
+                return -1;
+            }
+            else{
+                if(firstContentFlag){
+                    printf("PASV STOR new file name is %s", filename);
+                    printf("PASV STOR new file content is %s", fileContent);
+                    if(createFile(filename, fileContent) == 1){
+                        memset(fileContent, '\0', strlen(fileContent));		//清空
+                        firstContentFlag = 0;           //归零以便下次添加文件
+                    }
+                    else{
+                        puts("createfile Error");
+                        return -1;
+                    }
+                }
+                else{
+                    //本部分代码应该将接收的内容append到源文件中去
+                    appendFile(filename, fileContent);          //这里先不做异常处理
+                    memset(fileContent, '\0', strlen(fileContent));		//清空
+                }
+            }
+	    }
 	}
+	return 1;
 }
 
-//生成随机端口号
+//生成[20000,65536]随机端口号
 extern int random_port()
 {
     srand((unsigned)time(0));

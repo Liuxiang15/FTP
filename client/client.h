@@ -30,7 +30,7 @@ extern int handleCmdArgu(int argc, char **argv, char*ip){
 			port = atoi(argv[++i]);
 		}
 		else if(!strcmp(argv[i], "-ip")){
-			strcpy(ip, argv[i]);
+			strcpy(ip, argv[++i]);
 		}
 	}
 	return port;
@@ -165,14 +165,35 @@ extern int createFile(char*filename, char*content)
 {
 	//printf("the file name is %s", filename);
 	FILE *fp = fopen(filename, "w");					    /*w 打开只写文件，若文件存在则文件长度清为0，即该文件内容会消失。若文件不存在则建立该文件。*/
+	if(fp == NULL){
+	    printf("在createFile中文件打开出错");
+	    return -1;
+	}
 	int file_len = strlen(content);
 	if(fwrite(content, sizeof(char), file_len, fp) < 0)	/*fwrite返回值表示成功写入的数目。*/
 	{
 		printf("写入文件失败\n");
 		return -1;
 	}
-	fclose(fp);	//关闭文件才会写入
+	fclose(fp);	                                            //关闭文件才会写入
 	return 1;
+}
+
+extern int appendFile(char*filename, char*content){
+    //a+ 以附加方式打开可读写的文件。若文件不存在，则会建立该文件，//如果文件存在，写入的数据会被加到文件尾后，即文件原先的内容会被保留。 （原来的EOF符不保留）
+    FILE* fp = fopen(filename, "a+");
+    if(fp == NULL){
+	    printf("在appendFile中文件打开出错");
+	    return -1;
+	}
+    int file_len = strlen(content);
+    if(fwrite(content, sizeof(char), file_len, fp) < file_len){
+        printf("appendFile失败");
+        return -1;
+     }
+    fclose(fp);
+    return 1;
+
 }
 /*PORT指令处理,返回端口*/
 extern int handlePort(char* sentence, char*newip){
@@ -212,11 +233,6 @@ extern int handlePort(char* sentence, char*newip){
 	int nump1 = atoi(strp1);
 	int nump2 = atoi(strp2);
 	int port = 256 * nump1 + nump2;		//计算求得port
-	//printf("port函数中的p1和p2分别是%d %d\n", nump1, nump2);
-	//printf("ip地址为：%s\n", newip);
-	//memset(sentence, '\0', strlen(sentence));		//清空
-	//strcpy(sentence, "200 PORT command successful.\r\n");
-	//printf("port函数中的port=%d\n",port);
 	return port;
 	
 }
@@ -224,7 +240,7 @@ extern int handlePort(char* sentence, char*newip){
 extern  int dealpasv(char* sentence, char *newip)
 {
 	int j = 0;
-	int num = 0;//逗号的数量
+	int num = 0;                            //逗号的数量
 	char strp1[10] = "\0";
 	char strp2[10] = "\0";
 	for(int i = 27; i < strlen(sentence); i++)//ip地址从第27位开始
@@ -257,9 +273,6 @@ extern  int dealpasv(char* sentence, char *newip)
 	int nump1 = atoi(strp1);
 	int nump2 = atoi(strp2);
 	int port = 256 * nump1 + nump2;		//计算求得port
-	//printf("dealpasv函数中的p1和p2分别是%d %d\n", nump1, nump2);
-	//printf("dealpasv中deal的ip地址为：%s\n", newip);
-	//printf("dealpasv函数中的port=%d\n",port);	
 	return port;
 }
 /*stor指令处理*/
@@ -306,10 +319,24 @@ extern int stor(char* sentence, int newconnfd)
 	}
 }
 
+
 /*测试retr函数*/
+extern int getFileLength(char* sentence){
+    printf("进入getFileLength函数");
+   char*pStart = strchr(sentence, '(');
+   char*pEnd = strstr(sentence, " bytes");
+   char numStr[20] = "\0";
+   int i = 0;
+   while(pStart++ != pEnd-1){
+       numStr[i++] = *pStart;
+   }
+   printf("the length of transmitting file is %s", numStr);
+   int fileLen = atoi(numStr);
+   return fileLen;
+}
+
 extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockfd, int MODE, int listFlag)
 {
-//    puts("进入testRETR函数");
 	char filename[20] = "\0";
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
 	if(listFlag == 1){
@@ -319,135 +346,190 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 		normalizerecv(sentence);
 		strncpy(filename, sentence+5, strlen(sentence)-5);//获取文件名
 	}
-//    puts("testRETR中recv之前");
-//	if(recv(sockfd, sentence, CMD_SIZE, 0) <= 0){
-//		printf("RETRError\n");
-//		return -1;
-//	}
-//	else{
-//		puts("接收第2条指令");
-//		normalizerecv(sentence);
-//		printf("收到的指令是：%s\n", sentence);
-//	}
-//	int n;
-	//现在只支持PASV 模式下的RETR
+    //	printf("进入getFileLength函数的参数是%s", sentence);
+    //int fileLen = getFileLength(sentence);        //获取文件的总字节数
 	if(MODE == PASVMODE){
-//		puts("进入testRETR函数的PASVMODE判断中");
-		int readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0);
-//		printf("文件内容%s", fileContent);
-		if(readnum > 0)
-		{
-			if(listFlag == 1){
-				printf("%s", fileContent);
-			}
-			else{
-//				printf("RETR函数的文件名是：%s\n", filename);
-//				printf("RETR函数的内容是：%s\n", fileContent);
-				if(createFile(filename, fileContent) == 1){
-//					puts("createfile OK");
-					char transFinish[] = "226 Transfer complete.\n";
-					printf("%s", transFinish);
-				}
-				else{
-					puts("createfile Error");
-				}
-			}
-		}
-		else
-		    close(pasvconnfd);	//!!!此时不应该关闭文件传输和监听，毕竟不一定值传输一次
+        int readnum = 0;
+        int firstContentFlag = 1;    //标识现在是第一次接收大文件内容
+
+//        char bar[120] = "\0";
+//        int barSize = 100;
+//        const char*lable = "|/-\\";
+//        int currentSum = 0;
+//        int currentBar = 0;
+        while(readnum = recv(pasvconnfd, fileContent, CONTENT_SIZE, 0)){
+            if(readnum < 0){
+                puts("Recieve Data From Server Failed!");
+                close(pasvconnfd);              //传输出错，关闭文件传输
+                return -1;
+            }
+            else{
+                if(listFlag == 1){
+                    printf("%s", fileContent);
+                }
+                else{
+//                    currentSum += readnum;      //求和统计收到的字节
+//                    currentBar = currentSum * barSize / fileLen;    //计算当前进度栏长度
+//                    fflush(stdout);     //先清空标准输出流
+//                    for(int i = 0; i < currentBar; i++){
+//                        bar[i] = '#';
+//                    }
+//                    printf("[%-100s][%d%%][%c]\r", bar, currentBar, lable[currentBar % 4]);
+
+                    if(firstContentFlag){
+                        if(createFile(filename, fileContent) == 1){
+                            memset(fileContent, '\0', strlen(fileContent));		//清空
+                            firstContentFlag = 0;           //归零以便下次添加文件
+                        }
+                        else{
+                            puts("createfile Error");
+                        }
+                    }
+                    else{
+                        //本部分代码应该将接收的内容append到源文件中去
+                        appendFile(filename, fileContent);                   //这里先不做异常处理
+                        memset(fileContent, '\0', strlen(fileContent));		//清空
+                    }
+			    }
+            }
+        }
+        //只有当while退出来的时候才能输出
+        if(listFlag == 0){
+            char transFinish[] = "226 Transfer complete.\n";
+            printf("%s", transFinish);
+        }
+
+        close(pasvconnfd);              //传输完成，关闭文件传输
 	}
 	else if(MODE == PORTMODE){
 		int trans_connfd  = accept(clientlistenfd, NULL, NULL);	//testfd用于传输
 		if (trans_connfd == -1) {
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+			return  -1;
 		}
-		int n = recv(trans_connfd, fileContent, CONTENT_SIZE, 0);				//接收数据
-		
-		if(n < 0){
-			printf("PORT模式下RETR文件传输有误\n");
-			return -1;
-		}
-		else{
-			
-			if(listFlag == 1){
-				printf("%s", fileContent);
-			}
-			else{
-				if(createFile(filename, fileContent) == 1){	
-//					puts("createfile OK");
-					char transFinish[] = "226 Transfer complete.\n";
-					printf("%s", transFinish);
-				}
-				else{
-					puts("createfile Error");
-				}
-			}
-			close(trans_connfd);			//传输结束,关闭
-			close(clientlistenfd);	        //监听的话继续，只是之前的传输连接关掉
-		}
+		int readnum = 0;
+        int firstContentFlag = 1;    //标识现在是第一次接收大文件内容
+
+    	while(readnum = recv(trans_connfd, fileContent, CONTENT_SIZE, 0)){
+    	    if(readnum < 0){
+                puts("Recieve Data From Server Failed!");
+                close(trans_connfd);			//传输结束,关闭
+    			close(clientlistenfd);	        //监听的话继续，只是之前的传输连接关掉
+                return -1;
+            }
+            else{
+                if(listFlag == 1){
+                    printf("%s", fileContent);
+                }
+                else{
+                    if(firstContentFlag){
+                        if(createFile(filename, fileContent) == 1){
+                            memset(fileContent, '\0', strlen(fileContent));		//清空
+                            firstContentFlag = 0;           //归零以便下次添加文件
+                        }
+                        else{
+                            puts("createfile Error");
+                        }
+                    }
+                    else{
+                        appendFile(filename, fileContent);          //这里先不做异常处理
+                        memset(fileContent, '\0', strlen(fileContent));		//清空
+                    }
+			    }
+            }
+    	}
+    	//只有当while退出来的时候才能输出
+        if(listFlag == 0){
+            char transFinish[] = "226 Transfer complete.\n";
+            printf("%s", transFinish);
+        }
+        close(trans_connfd);			//传输结束,关闭
+    	close(clientlistenfd);	        //监听的话继续，只是之前的传输连接关掉
 	}
-	
 	return 1;
 }
 
 /*测试STOR指令*/
 extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvconnfd, int MODE)
 {
-	//printf("进入testSTOR函数\n");
 	char fileContent[CONTENT_SIZE] = "\0";		//默认传输文件不超过8KB
-	//printf("文件名是%s\n", filename);
 	FILE *fp = fopen(filename, "r");
 	if(fp == NULL){
 		printf("文件打开出错\n");
 		return -1;
 	}
-
 	fseek(fp,0,SEEK_END);       //定位到文件末
-	int fileSize = ftell(fp);   //文件长度
+	int fileSize = ftell(fp);   //获取文件长度
 	fseek(fp,0,SEEK_SET);		//fp指向文件头
 
-	if(MODE == PORTMODE){
-		int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
-		if (portconnfd == -1) {
-			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+	if(fileSize <= 2048){
+        int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//读取文件内容隐藏危险
+        fclose(fp);
+        if(MODE == PORTMODE){
+            int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
+            if (portconnfd == -1) {
+                printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+            }
+            else{
+                int n = send(portconnfd, fileContent, fileSize, 0);
+                if(n < 0){
+                    printf("STORsend失败\n");
+                    return -1;
+                }
+                close(portlistenfd);
+                close(portconnfd);
+                return 1;
+            }
 		}
-		else{
-			int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次 
-			fclose(fp); 
-			if(readnum > 0)
-			{
-				//printf("读取到的文件内容是%s", fileContent);
-				//printf("进入STOR的传输过程\n");
-				int n = send(portconnfd, fileContent, fileSize, 0);
-				if(n < 0)
-				{
-					printf("STORsend失败\n");
-					return -1;
-				}
-				close(portlistenfd);
-				close(portconnfd);
-				//printf("STOR传输文件完成\n");
-			}
-		}
+		else if(MODE == PASVMODE)
+        {
+            int n = send(pasvconnfd, fileContent, fileSize, 0);
+            if(n < 0){
+                printf("STORsend失败\n");
+                return -1;
+            }
+            close(pasvconnfd);
+            return 1;
+        }
 	}
-	else if(MODE == PASVMODE)	//PASVMODE
-	{
-		//先获取文件大小（待提取）
-		int readnum = fread (fileContent, sizeof(char), fileSize, fp);	//隐藏危险//每次读一个，共读size次  
-		if(readnum > 0)
-		{
-			//printf("进入STOR的传输过程\n");
-			int n = send(pasvconnfd, fileContent, fileSize, 0);
-			if(n < 0)
-			{
-				printf("STORsend失败\n");
-				return -1;
-			}
-			fclose(fp);
-			close(pasvconnfd);
-			// printf("STOR传输文件完成\n");
-		}
+	else{
+	    //如果大文件的话就要分批发送了
+	    if(MODE == PORTMODE){
+	        int file_block_length = 0;
+	        int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
+            if (portconnfd == -1) {
+                printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+            }
+            else{
+                while((file_block_length = fread(fileContent, sizeof(char), CONTENT_SIZE, fp)) > 0){
+                    if(send(portconnfd, fileContent, fileSize, 0) < 0){
+                        printf("send file failed");
+                        return -1;
+                    }
+                    memset(fileContent, '\0', CONTENT_SIZE);		//清空
+                }
+                fclose(fp);
+                close(portlistenfd);
+                close(portconnfd);
+                return 1;
+            }
+	    }
+	    if(MODE == PASVMODE){
+	        int file_block_length = 0;
+	        while((file_block_length = fread(fileContent, sizeof(char), CONTENT_SIZE, fp)) >0){
+	            if(send(pasvconnfd, fileContent, file_block_length, 0) < 0){
+                    printf("send file failed");
+                    break;
+                }
+                memset(sentence, '\0', CONTENT_SIZE);		//清空
+	        }
+	        fclose(fp);
+            close(pasvconnfd);
+            return 1;
+	    }
 	}
+
+
 }
 
 #endif
