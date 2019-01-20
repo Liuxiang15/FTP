@@ -408,13 +408,12 @@ extern int testRETR(char*sentence, int clientlistenfd, int pasvconnfd, int sockf
 			return  -1;
 		}
 		int readnum = 0;
-        int firstContentFlag = 1;    //标识现在是第一次接收大文件内容
-
+        int firstContentFlag = 1;                //标识现在是第一次接收大文件内容
     	while(readnum = recv(trans_connfd, fileContent, CONTENT_SIZE, 0)){
     	    if(readnum < 0){
                 puts("Recieve Data From Server Failed!");
-                close(trans_connfd);			//传输结束,关闭
-    			close(clientlistenfd);	        //监听的话继续，只是之前的传输连接关掉
+                close(trans_connfd);
+    			close(clientlistenfd);	        //传输结束,关闭
                 return -1;
             }
             else{
@@ -460,6 +459,7 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 	}
 	fseek(fp,0,SEEK_END);       //定位到文件末
 	int fileSize = ftell(fp);   //获取文件长度
+	printf("in theory the length of stor file is %d\n",fileSize);
 	fseek(fp,0,SEEK_SET);		//fp指向文件头
 
 	if(fileSize <= 2048){
@@ -469,6 +469,7 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
             int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
             if (portconnfd == -1) {
                 printf("Error accept(): %s(%d)\n", strerror(errno), errno);
+                return -1;
             }
             else{
                 int n = send(portconnfd, fileContent, fileSize, 0);
@@ -494,6 +495,7 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 	}
 	else{
 	    //如果大文件的话就要分批发送了
+	    int transNum = 0;
 	    if(MODE == PORTMODE){
 	        int file_block_length = 0;
 	        int portconnfd  = accept(portlistenfd, NULL, NULL);	//portconnfd用于传输
@@ -502,12 +504,14 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
             }
             else{
                 while((file_block_length = fread(fileContent, sizeof(char), CONTENT_SIZE, fp)) > 0){
+                    transNum += file_block_length;
                     if(send(portconnfd, fileContent, fileSize, 0) < 0){
                         printf("send file failed");
-                        return -1;
+                        break;
                     }
                     memset(fileContent, '\0', CONTENT_SIZE);		//清空
                 }
+                printf("in fact the length of stor file is %d\n", transNum);
                 fclose(fp);
                 close(portlistenfd);
                 close(portconnfd);
@@ -517,12 +521,14 @@ extern int testSTOR(char *sentence, char *filename, int portlistenfd, int pasvco
 	    if(MODE == PASVMODE){
 	        int file_block_length = 0;
 	        while((file_block_length = fread(fileContent, sizeof(char), CONTENT_SIZE, fp)) >0){
+	            transNum += file_block_length;
 	            if(send(pasvconnfd, fileContent, file_block_length, 0) < 0){
                     printf("send file failed");
                     break;
                 }
                 memset(sentence, '\0', CONTENT_SIZE);		//清空
 	        }
+	        printf("in fact the length of stor file is %d\n",transNum);
 	        fclose(fp);
             close(pasvconnfd);
             return 1;

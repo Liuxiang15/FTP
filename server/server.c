@@ -58,20 +58,15 @@ int main(int argc, char **argv) {
 	pid_t pid;
 	//持续监听连接请求
 	while (1) {
-		//struct sockaddr_in cli_addr;
-		//memset(&cli_addr, 0, sizeof(cli_addr));
 		if ((connfd = accept(listenfd, NULL, NULL)) == -1) {
-			//printf("出错的客户端口是%d\n", ntohl(cli_addr.sin_port));
 			printf("Error accept(): %s(%d)\n", strerror(errno), errno);
 			continue;
-			//break;
 		}
-		printf("进入了server的函数\n");
 		if ((pid = fork()) == 0) {
 		    if(send(connfd, initMsg, strlen(initMsg), 0) < 0)
             {
                 printf("Error send(): %s(%d)\n", strerror(errno), errno);
-                continue;	//连接多个客户端，不能return
+                continue;
             }
 
             while(1)

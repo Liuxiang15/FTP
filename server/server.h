@@ -398,7 +398,7 @@ extern int handleRetr(char*relative_path, char* sentence, int portconnfd,
             //如果大文件的话就要分批发送了
             memset(sentence, '\0', strlen(sentence));		//清空
             if(MODE == PASVMODE){
-                memset(sentence, '\0', strlen(sentence));		//清空
+                memset(sentence, '\0', strlen(sentence));
                 int file_block_length = 0;
                 int pasvconnfd = accept(pasvlistenfd, NULL, NULL);	//pasvconnfd用于传输
                 while((file_block_length = fread(sentence, sizeof(char), CONTENT_SIZE, fp)) > 0){
